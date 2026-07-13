@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FamilyTree.Api/FamilyTree.Api.csproj" />
+    <Project Path="src/FamilyTree.Core/FamilyTree.Core.csproj" />
+    <Project Path="src/FamilyTree.Infrastructure/FamilyTree.Infrastructure.csproj" />
+  </Folder>
+</Solution>

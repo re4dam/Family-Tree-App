@@ -1,0 +1,76 @@
+# =========================================================================
+# System and IDE
+# =========================================================================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# =========================================================================
+# Frontend / Node.js
+# =========================================================================
+# dependencies
+node_modules/
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+/frontend/build/
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# =========================================================================
+# Backend / .NET
+# =========================================================================
+# Build folders
+bin/
+obj/
+/backend/**/bin/
+/backend/**/obj/
+
+# User-specific files
+*.user
+*.userosscache
+*.sln.docstates
+
+# Mono auto generated files
+mono_crash.*
+
+# EF Core migrations / tool outputs
+*.db
+
+# Publishing outputs
+/backend/publish/
+
+# Secrets / Config
+appsettings.Development.json
+/backend/**/appsettings.Development.json
+/backend/**/appsettings.Local.json
+secrets.json
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# =========================================================================
+# Local and Temp Artifacts
+# =========================================================================
+temp/
+tmp/
+*.log
