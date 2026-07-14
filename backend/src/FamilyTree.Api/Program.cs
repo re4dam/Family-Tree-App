@@ -88,7 +88,10 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") != "true")
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseCors("AllowFrontend");
 
@@ -99,5 +102,36 @@ app.UseAuthorization();
 app.MapGraphQL();
 
 app.MapGet("/", () => "Family Tree GraphQL Server running. Navigate to /graphql for Banana Cake Pop IDE.");
+
+// Automatically create database at startup with retry logic
+using (var scope = app.Services.CreateScope())
+{
+    var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<FamilyTreeDbContext>>();
+    using var dbContext = contextFactory.CreateDbContext();
+    
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    int retries = 5;
+    while (retries > 0)
+    {
+        try
+        {
+            logger.LogInformation("Attempting to connect to database and ensure it is created...");
+            dbContext.Database.EnsureCreated();
+            logger.LogInformation("Database connection established and schema ensured.");
+            break;
+        }
+        catch (Exception ex)
+        {
+            retries--;
+            logger.LogWarning(ex, "Failed to connect to database. Retries remaining: {Retries}", retries);
+            if (retries == 0)
+            {
+                logger.LogError(ex, "Could not connect to database after multiple attempts. Application exiting.");
+                throw;
+            }
+            Thread.Sleep(3000); // Wait 3 seconds before next retry
+        }
+    }
+}
 
 app.Run();

@@ -1,0 +1,194 @@
+# ==============================================================================
+# FAMILY TREE APP - GRAPHQL QUERY REFERENCE
+# ==============================================================================
+# Use these queries and mutations to interact with the HotChocolate backend API
+# at http://localhost:5000/graphql.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. DATABASE UTILITIES & SYSTEM CHECK
+# ------------------------------------------------------------------------------
+
+# Welcome Ping
+query GetWelcomeMessage {
+  welcome
+}
+
+# Seed sample 3-generation family tree data (removes existing data)
+mutation SeedDatabase {
+  seedSampleData
+}
+
+# ------------------------------------------------------------------------------
+# 2. READ OPERATIONS (QUERIES)
+# ------------------------------------------------------------------------------
+
+# Get all people with basic attributes
+query GetAllPeople {
+  people {
+    id
+    firstName
+    lastName
+    nickname
+    gender
+    birthDate
+    estimatedBirthYear
+    isLiving
+  }
+}
+
+# Search and filter people (e.g., males only, sorted by last name)
+query FilterPeople {
+  people(
+    where: { gender: { eq: MALE } }
+    order: { lastName: ASC }
+  ) {
+    id
+    firstName
+    lastName
+    gender
+  }
+}
+
+# Get a single person in detail along with their direct family relationships
+query GetPersonDetail($id: UUID!) {
+  person(id: $id) {
+    id
+    firstName
+    lastName
+    nickname
+    gender
+    birthDate
+    estimatedBirthYear
+    deathDate
+    birthPlace
+    photoUrl
+    notes
+    isLiving
+    
+    # Relationships where this person is the source (e.g. Partner, Parent)
+    relationshipsAsSource {
+      id
+      type
+      parentChildType
+      partnerType
+      targetPerson {
+        id
+        firstName
+        lastName
+      }
+    }
+    
+    # Relationships where this person is the target (e.g. Child)
+    relationshipsAsTarget {
+      id
+      type
+      parentChildType
+      partnerType
+      sourcePerson {
+        id
+        firstName
+        lastName
+      }
+    }
+  }
+}
+
+# Get all relationships (edges) in the tree
+query GetAllRelationships {
+  relationships {
+    id
+    type
+    sourcePersonId
+    targetPersonId
+    parentChildType
+    partnerType
+  }
+}
+
+# ------------------------------------------------------------------------------
+# 3. WRITE OPERATIONS (MUTATIONS)
+# ------------------------------------------------------------------------------
+
+# Create a new person
+mutation CreatePerson($input: CreatePersonInput!) {
+  createPerson(input: $input) {
+    id
+    firstName
+    lastName
+    gender
+    birthDate
+  }
+}
+
+# Example Variables for CreatePerson:
+# {
+#   "input": {
+#     "firstName": "Arthur",
+#     "lastName": "Pendragon",
+#     "nickname": "Artie",
+#     "gender": "MALE",
+#     "birthDate": "2000-08-15T00:00:00Z",
+#     "birthPlace": "Camelot Hospital",
+#     "notes": "Uther and Igraine's eldest son."
+#   }
+# }
+
+# Update an existing person
+mutation UpdatePerson($id: UUID!, $input: UpdatePersonInput!) {
+  updatePerson(id: $id, input: $input) {
+    id
+    firstName
+    lastName
+    notes
+  }
+}
+
+# Example Variables for UpdatePerson:
+# {
+#   "id": "YOUR_PERSON_GUID_HERE",
+#   "input": {
+#     "notes": "Updated biography details."
+#   }
+# }
+
+# Delete a person (will cascade delete their relationships)
+mutation DeletePerson($id: UUID!) {
+  deletePerson(id: $id)
+}
+
+# Create a relationship (ParentChild or Partner)
+mutation CreateRelationship($input: CreateRelationshipInput!) {
+  createRelationship(input: $input) {
+    id
+    type
+    sourcePersonId
+    targetPersonId
+  }
+}
+
+# Example Variables for CreateRelationship (ParentChild):
+# {
+#   "input": {
+#     "sourcePersonId": "PARENT_GUID",
+#     "targetPersonId": "CHILD_GUID",
+#     "type": "PARENT_CHILD",
+#     "parentChildType": "BIOLOGICAL"
+#   }
+# }
+
+# Example Variables for CreateRelationship (Partner):
+# {
+#   "input": {
+#     "sourcePersonId": "HUSBAND_GUID",
+#     "targetPersonId": "WIFE_GUID",
+#     "type": "PARTNER",
+#     "partnerType": "MARRIED",
+#     "startYear": 1998
+#   }
+# }
+
+# Delete a relationship edge
+mutation DeleteRelationship($id: UUID!) {
+  deleteRelationship(id: $id)
+}

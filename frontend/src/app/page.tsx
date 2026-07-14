@@ -1,6 +1,7 @@
 import React from "react";
 import { GitBranch, User, Search, Share2, Shield, Layers, Play, Database, BookOpen } from "lucide-react";
 import styles from "./page.module.css";
+import ThemeToggle from "./ThemeToggle";
 
 export default function Home() {
   return (
@@ -20,6 +21,7 @@ export default function Home() {
           <a href="#features" className={styles.navLink}>Features</a>
           <a href="#stack" className={styles.navLink}>Tech Stack</a>
           <a href="/graphql" target="_blank" className={styles.navLink}>GraphQL Playground</a>
+          <ThemeToggle />
         </nav>
       </header>
 

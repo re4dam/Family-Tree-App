@@ -1,17 +1,48 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background-color: #08090f;
+  --text-color: #f1f2f6;
+  --text-muted: #94a3b8;
+  --card-bg: rgba(255, 255, 255, 0.02);
+  --card-border: rgba(255, 255, 255, 0.06);
+  --border-color: rgba(255, 255, 255, 0.05);
+  --header-bg: rgba(8, 9, 15, 0.8);
+  --logo-text-gradient: linear-gradient(135deg, #fff 60%, #a5b4fc 100%);
+  --mockup-bg: rgba(13, 17, 30, 0.7);
+  --node-rect-fill: #111422;
+  --node-rect-active: #1e1e38;
+  --svg-line: rgba(255, 255, 255, 0.15);
+  --secondary-btn-bg: rgba(255, 255, 255, 0.03);
+  --secondary-btn-border: rgba(255, 255, 255, 0.1);
+  --secondary-btn-hover: rgba(255, 255, 255, 0.08);
+  --glow-opacity-1: 0.15;
+  --glow-opacity-2: 0.12;
+  --shadow-color: rgba(0, 0, 0, 0.5);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+[data-theme="light"] {
+  --background-color: #f8fafc;
+  --text-color: #0f172a;
+  --text-muted: #475569;
+  --card-bg: #ffffff;
+  --card-border: rgba(99, 102, 241, 0.12);
+  --border-color: rgba(99, 102, 241, 0.1);
+  --header-bg: rgba(248, 250, 252, 0.85);
+  --logo-text-gradient: linear-gradient(135deg, #0f172a 60%, #4f46e5 100%);
+  --mockup-bg: rgba(255, 255, 255, 0.85);
+  --node-rect-fill: #f8fafc;
+  --node-rect-active: #e2e8f0;
+  --svg-line: rgba(99, 102, 241, 0.25);
+  --secondary-btn-bg: rgba(99, 102, 241, 0.05);
+  --secondary-btn-border: rgba(99, 102, 241, 0.15);
+  --secondary-btn-hover: rgba(99, 102, 241, 0.15);
+  --glow-opacity-1: 0.08;
+  --glow-opacity-2: 0.06;
+  --shadow-color: rgba(99, 102, 241, 0.08);
 }
 
 html {
   height: 100%;
+  scroll-behavior: smooth;
 }
 
 html,
@@ -24,11 +55,12 @@ body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
+  color: var(--text-color);
+  background-color: var(--background-color);
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 * {
@@ -40,10 +72,4 @@ body {
 a {
   color: inherit;
   text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
 }
