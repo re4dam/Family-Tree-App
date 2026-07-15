@@ -1,0 +1,14 @@
+.git
+.gitignore
+.vs/
+.vscode/
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstate
+Dockerfile
+docker-compose*
+.DS_Store
+Thumbs.db
