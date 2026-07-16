@@ -14,7 +14,7 @@ export default function Home() {
 
   const handleCtaClick = () => {
     if (user) {
-      alert(`Welcome, ${user.username}! The Interactive Graph View is in active development (Milestone 3+).`);
+      router.push("/dashboard");
     } else {
       router.push("/login");
     }
@@ -79,7 +79,7 @@ export default function Home() {
             <button className={styles.primaryButton} onClick={handleCtaClick}>
               <Play size={18} fill="currentColor" />
               <span>
-                {!loading && user ? "Launch App (Milestone 3+)" : "Sign In to Launch"}
+                {!loading && user ? "Go to Dashboard" : "Sign In to Launch"}
               </span>
             </button>
             <a 

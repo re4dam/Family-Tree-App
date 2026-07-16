@@ -72,17 +72,17 @@ Reach for GraphQL (whichever backend you pick) only if you expect the frontend's
 
 ## 4. Accounts & Permissions (multi-family-member access)
 
-- [ ] Multi-account support — each family member can have their own login (not
+- [x] Multi-account support — each family member can have their own login (not
   a single shared account)
-- [ ] Authentication (ASP.NET Core Identity + JWT, per Tech Stack section)
-- [ ] Authorization model — three roles:
+- [x] Authentication (ASP.NET Core Identity + JWT, per Tech Stack section)
+- [x] Authorization model — three roles:
   - **Viewer**: browse/search the tree only, no edits (family members with an account)
   - **Admin**: everything a Viewer can do, plus create/edit/merge people and
     relationships; can switch into view-only mode at will
   - **Super Admin**: everything an Admin can do, plus manage accounts —
     invite/remove users, assign/change roles (Viewer ↔ Admin), and
     create/revoke share links (see below)
-- [ ] Decide scope of permissions: whole-tree roles (simplest, start here) vs.
+- [x] Decide scope of permissions: whole-tree roles (simplest, start here) vs.
   per-branch permissions (e.g. only edit your own immediate family) — start
   with whole-tree roles and revisit only if it becomes a real problem
 - [ ] Invite flow — how does a Super Admin add another family member's account?
@@ -135,11 +135,11 @@ time implementation starts:
 
 ## Suggested Build Order
 
-1. Data model + schema (get relationships right first — this is the hardest
+1. [x] Data model + schema (get relationships right first — this is the hardest
    part to change later)
-2. Authentication + role model (Viewer/Admin/Super Admin) — build this early
+2. [x] Authentication + role model (Viewer/Admin/Super Admin) — build this early
    since editing is gated by it from day one, not bolted on after
-3. CRUD for Person + relationships (no visualization yet — plain forms/list)
+3. [x] CRUD for Person + relationships (no visualization yet — plain forms/list)
 4. Graph visualization (read-only, network view)
 5. Node click → detail panel
 6. Search
