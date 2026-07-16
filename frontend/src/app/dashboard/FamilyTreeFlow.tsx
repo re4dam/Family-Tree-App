@@ -5,6 +5,7 @@ import {
   ReactFlow, 
   Background, 
   Controls, 
+  Panel,
   useNodesState, 
   useEdgesState,
   Node,
@@ -16,6 +17,7 @@ import PersonNode from './PersonNode';
 import FamilyEdge from './FamilyEdge';
 import { getLayoutedElements, GraphQLPerson, GraphQLRelationship } from './layoutUtils';
 import styles from './dashboard.module.css';
+import { RefreshCw } from 'lucide-react';
 
 const NODE_TYPES = {
   personNode: PersonNode,
@@ -52,16 +54,6 @@ export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlow
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '-60px' }}>
-        <button 
-          className={styles.backHomeBtn}
-          onClick={calculateLayout}
-          title="Recalculate and reset tree layout positions"
-        >
-          Reset View & Layout
-        </button>
-      </div>
-
       <div className={styles.graphViewport}>
         <ReactFlow
           nodes={nodes}
@@ -79,6 +71,16 @@ export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlow
         >
           <Background color="rgba(255, 255, 255, 0.05)" gap={20} size={1} />
           <Controls />
+          <Panel position="top-right">
+            <button 
+              className={styles.resetLayoutBtn}
+              onClick={calculateLayout}
+              title="Recalculate and reset tree layout positions"
+            >
+              <RefreshCw size={14} />
+              Reset View & Layout
+            </button>
+          </Panel>
         </ReactFlow>
       </div>
     </div>

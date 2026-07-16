@@ -706,20 +706,60 @@
 }
 
 /* React Flow customizations */
-:global(.react-flow__panel) {
+:global(.react-flow__controls) {
   background: var(--card-bg) !important;
   border: 1px solid var(--card-border) !important;
   border-radius: 8px !important;
-  padding: 6px !important;
   box-shadow: 0 4px 12px var(--shadow-color) !important;
+  overflow: hidden !important;
+  padding: 0 !important;
 }
 
 :global(.react-flow__controls-button) {
+  background: transparent !important;
+  border: none !important;
   border-bottom: 1px solid var(--border-color) !important;
   color: var(--text-color) !important;
   fill: var(--text-color) !important;
+  transition: background-color 0.2s ease !important;
 }
+
+:global(.react-flow__controls-button:last-child) {
+  border-bottom: none !important;
+}
+
 :global(.react-flow__controls-button:hover) {
   background-color: var(--secondary-btn-hover) !important;
+}
+
+:global(.react-flow__controls-button svg) {
+  fill: var(--text-color) !important;
+}
+
+.resetLayoutBtn {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-color);
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px var(--shadow-color);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.resetLayoutBtn:hover {
+  background-color: var(--secondary-btn-hover);
+  border-color: var(--secondary-btn-border);
+  transform: translateY(-1px);
+}
+
+.resetLayoutBtn:active {
+  transform: translateY(0);
 }
 

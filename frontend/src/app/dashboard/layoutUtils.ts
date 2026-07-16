@@ -51,11 +51,9 @@ export function getLayoutedElements(
 
   // 2. Add edges to Dagre
   // We add PARENT_CHILD edges for ranking.
-  // We also add PARTNER edges to Dagre so that partners align closely on similar levels.
+  // We do NOT add PARTNER edges to Dagre so that they don't introduce vertical rank constraints.
   relationships.forEach((rel) => {
     if (rel.type === 'PARENT_CHILD') {
-      g.setEdge(rel.sourcePersonId, rel.targetPersonId);
-    } else if (rel.type === 'PARTNER') {
       g.setEdge(rel.sourcePersonId, rel.targetPersonId);
     }
   });
@@ -89,8 +87,8 @@ export function getLayoutedElements(
     if (!isParentChild && sourceNode && targetNode) {
       // For partners, determine which node is to the left
       const isSourceLeft = sourceNode.position.x < targetNode.position.x;
-      sourceHandle = isSourceLeft ? 'right' : 'left';
-      targetHandle = isSourceLeft ? 'left' : 'right';
+      sourceHandle = isSourceLeft ? 'right-source' : 'left-source';
+      targetHandle = isSourceLeft ? 'left-target' : 'right-target';
     }
 
     return {
