@@ -104,6 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
 
+    if (!data || !data.login) {
+      throw new Error("No login data returned from backend.");
+    }
+
     const { token: jwtToken, user: userData } = data.login;
     localStorage.setItem("token", jwtToken);
     setToken(jwtToken);
@@ -126,6 +130,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         input: { username, email, password },
       },
     });
+
+    if (!data || !data.register) {
+      throw new Error("No registration data returned from backend.");
+    }
 
     const { token: jwtToken, user: userData } = data.register;
     localStorage.setItem("token", jwtToken);
