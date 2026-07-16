@@ -66,6 +66,7 @@ builder.Services
     .AddMutationType<Mutation>()
     .AddFiltering()
     .AddSorting()
+    .AddAuthorization()
     .RegisterDbContextFactory<FamilyTreeDbContext>();
 
 // 5. Configure CORS
@@ -118,6 +119,18 @@ using (var scope = app.Services.CreateScope())
             logger.LogInformation("Attempting to connect to database and ensure it is created...");
             dbContext.Database.EnsureCreated();
             logger.LogInformation("Database connection established and schema ensured.");
+            
+            // Seed default roles
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            string[] roles = { "SuperAdmin", "Admin", "Viewer" };
+            foreach (var roleName in roles)
+            {
+                if (!roleManager.RoleExistsAsync(roleName).GetAwaiter().GetResult())
+                {
+                    logger.LogInformation("Seeding role: {Role}", roleName);
+                    roleManager.CreateAsync(new IdentityRole<Guid> { Id = Guid.NewGuid(), Name = roleName }).GetAwaiter().GetResult();
+                }
+            }
             break;
         }
         catch (Exception ex)

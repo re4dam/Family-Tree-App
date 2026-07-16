@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FamilyTree.Core.Entities;
 using FamilyTree.Infrastructure.Data;
+using HotChocolate.Authorization;
 using HotChocolate.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,10 +13,12 @@ public class Query
 {
     public string Welcome() => "Welcome to the Family Tree API!";
 
+    [Authorize]
     [UseFiltering]
     [UseSorting]
     public IQueryable<Person> GetPeople(FamilyTreeDbContext db) => db.People;
 
+    [Authorize]
     public async Task<Person?> GetPersonAsync(Guid id, FamilyTreeDbContext db)
     {
         return await db.People
@@ -26,7 +29,9 @@ public class Query
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
+    [Authorize]
     [UseFiltering]
     [UseSorting]
     public IQueryable<Relationship> GetRelationships(FamilyTreeDbContext db) => db.Relationships;
 }
+

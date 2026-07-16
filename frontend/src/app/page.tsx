@@ -1,9 +1,25 @@
+'use client';
+
 import React from "react";
-import { GitBranch, User, Search, Share2, Shield, Layers, Play, Database, BookOpen } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { GitBranch, User, Search, Share2, Shield, Layers, Play, Database, BookOpen, LogOut } from "lucide-react";
 import styles from "./page.module.css";
 import ThemeToggle from "./ThemeToggle";
+import { useAuth } from "../context/AuthContext";
 
 export default function Home() {
+  const { user, logout, loading } = useAuth();
+  const router = useRouter();
+
+  const handleCtaClick = () => {
+    if (user) {
+      alert(`Welcome, ${user.username}! The Interactive Graph View is in active development (Milestone 3+).`);
+    } else {
+      router.push("/login");
+    }
+  };
+
   return (
     <div className={styles.container}>
       {/* Background decoration */}
@@ -21,6 +37,29 @@ export default function Home() {
           <a href="#features" className={styles.navLink}>Features</a>
           <a href="#stack" className={styles.navLink}>Tech Stack</a>
           <a href="/graphql" target="_blank" className={styles.navLink}>GraphQL Playground</a>
+          
+          {!loading && user ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <span style={{ fontSize: "14px", color: "var(--text-color)", fontWeight: 500 }}>
+                {user.username} ({user.role})
+              </span>
+              <button 
+                onClick={logout} 
+                className={styles.themeToggleBtn} 
+                style={{ width: "auto", padding: "0 12px", display: "flex", gap: "6px" }}
+                aria-label="Logout"
+              >
+                <LogOut size={14} />
+                <span style={{ fontSize: "12px", fontWeight: 600 }}>Logout</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <Link href="/login" className={styles.navLink}>Login</Link>
+              <Link href="/register" className={styles.navLink}>Register</Link>
+            </>
+          )}
+          
           <ThemeToggle />
         </nav>
       </header>
@@ -37,9 +76,11 @@ export default function Home() {
             React Flow, .NET 10, HotChocolate GraphQL, and PostgreSQL.
           </p>
           <div className={styles.ctaGroup}>
-            <button className={styles.primaryButton}>
+            <button className={styles.primaryButton} onClick={handleCtaClick}>
               <Play size={18} fill="currentColor" />
-              <span>Launch App (Next Phase)</span>
+              <span>
+                {!loading && user ? "Launch App (Milestone 3+)" : "Sign In to Launch"}
+              </span>
             </button>
             <a 
               href="https://github.com/dotnet/efcore" 

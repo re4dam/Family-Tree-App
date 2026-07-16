@@ -1,7 +1,6 @@
 # Family Tree Application — TODO
 
-Status: **Planning phase**. Nothing below is implemented yet — this is a scoping
-document to align on features and data model before writing code.
+Status: **Implementation phase**. The database models, core validation, backend API queries/mutations, and basic frontend scaffolding have been initialized.
 
 ---
 
@@ -34,19 +33,19 @@ Reach for GraphQL (whichever backend you pick) only if you expect the frontend's
 
 ## 1. Person Node (Individual)
 
-- [ ] Define `Person` entity with core fields:
+- [x] Define `Person` entity with core fields:
   - `id`, `firstName`, `lastName`, `nickname`
   - `gender`: enum, `male` / `female` only (drives husband/wife relationship labeling — no other values needed per project decision)
   - `birthDate`: either a full date OR an `estimatedYear` (int only, no month/day) — pick one representation per person, don't force a fake full date when only a year is known
   - `deathDate` (nullable — living vs deceased)
   - `birthPlace`, `photoUrl`, `notes/bio`
   - `livingStatus` derived from `deathDate` presence, not a separate manual flag
-- [ ] Define relationship types as first-class edges, not just fields on `Person`:
+- [x] Define relationship types as first-class edges, not just fields on `Person`:
   - Parent–child (biological, adoptive, step, foster, guardian)
   - Partner (married, divorced, separated, unmarried/de facto, widowed)
-- [ ] Support multiple partners per person over time (marriage history), not just one spouse field
-- [ ] Support unknown parent as an explicit **placeholder `Person`** (e.g. `isUnknown: true`, no name/dates) rather than a null reference — keeps the edge (and future "resolve this person later" flow) intact instead of just leaving a gap
-- [ ] Validation: prevent cycles (a person cannot be their own ancestor)
+- [x] Support multiple partners per person over time (marriage history), not just one spouse field
+- [x] Support unknown parent as an explicit **placeholder `Person`** (e.g. `isUnknown: true`, no name/dates) rather than a null reference — keeps the edge (and future "resolve this person later" flow) intact instead of just leaving a gap
+- [x] Validation: prevent cycles (a person cannot be their own ancestor)
 - [ ] **Merge tool**: detect/flag likely duplicate people (same name + overlapping dates or shared relatives) and support merging two `Person` records into one, re-pointing all relationship edges from the discarded record to the kept one
 
 ## 2. Graph Visualization
