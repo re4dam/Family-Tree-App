@@ -13,6 +13,13 @@ import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../ThemeToggle";
 import styles from "./dashboard.module.css";
 
+import dynamic from "next/dynamic";
+
+const FamilyTreeFlow = dynamic(
+  () => import("./FamilyTreeFlow"),
+  { ssr: false, loading: () => <div className={styles.emptyState}>Loading family tree visualization...</div> }
+);
+
 // ------------------------------------------------------------------------------
 // GraphQL Queries & Mutations
 // ------------------------------------------------------------------------------
@@ -93,7 +100,7 @@ export default function DashboardPage() {
   const { user, logout, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"people" | "relationships">("people");
+  const [activeTab, setActiveTab] = useState<"people" | "relationships" | "graph">("graph");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Individual Form States
@@ -124,7 +131,7 @@ export default function DashboardPage() {
   const [endYear, setEndYear] = useState("");
 
   // Apollo operations
-  const { data, loading, error, refetch } = useQuery(GET_ALL_DATA, {
+  const { data, loading, error, refetch } = useQuery<any>(GET_ALL_DATA, {
     skip: !user,
   });
 
@@ -349,6 +356,12 @@ export default function DashboardPage() {
       {/* Tabs */}
       <div className={styles.tabs}>
         <button 
+          className={`${styles.tabBtn} ${activeTab === "graph" ? styles.activeTabBtn : ""}`}
+          onClick={() => setActiveTab("graph")}
+        >
+          Graph View
+        </button>
+        <button 
           className={`${styles.tabBtn} ${activeTab === "people" ? styles.activeTabBtn : ""}`}
           onClick={() => setActiveTab("people")}
         >
@@ -369,6 +382,31 @@ export default function DashboardPage() {
         <div className={styles.emptyState} style={{ color: "#ef4444" }}>Error loading records: {error.message}</div>
       ) : (
         <div className={styles.mainPanel}>
+          {activeTab === "graph" && (
+            <>
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>Family Tree Visualization</h2>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button 
+                    className={styles.createBtn} 
+                    onClick={handleOpenCreatePerson}
+                    disabled={isReadOnly}
+                    title={isReadOnly ? "Viewers cannot create records" : ""}
+                  >
+                    <UserPlus size={16} />
+                    <span>Add Individual</span>
+                  </button>
+                </div>
+              </div>
+
+              {data?.people?.length === 0 ? (
+                <div className={styles.emptyState}>No individuals added yet. Click "Add Individual" to begin.</div>
+              ) : (
+                <FamilyTreeFlow people={data.people} relationships={data.relationships} />
+              )}
+            </>
+          )}
+
           {activeTab === "people" && (
             <>
               <div className={styles.panelHeader}>

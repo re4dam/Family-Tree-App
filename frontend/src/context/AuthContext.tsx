@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (usernameOrEmail: string, password: string): Promise<User> => {
-    const { data } = await client.mutate({
+    const { data } = await client.mutate<any>({
       mutation: LOGIN_MUTATION,
       variables: {
         input: { usernameOrEmail, password },
@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (username: string, email: string, password: string): Promise<User> => {
-    const { data } = await client.mutate({
+    const { data } = await client.mutate<any>({
       mutation: REGISTER_MUTATION,
       variables: {
         input: { username, email, password },

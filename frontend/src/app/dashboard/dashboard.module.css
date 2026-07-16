@@ -471,3 +471,255 @@
   color: var(--text-muted);
   font-size: 15px;
 }
+
+/* Graph Visualization Viewport */
+.graphViewport {
+  width: 100%;
+  height: 600px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px var(--shadow-color);
+  backdrop-filter: blur(8px);
+  position: relative;
+}
+
+/* Custom Nodes */
+.nodeCard {
+  width: 220px;
+  height: 90px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text-color);
+  font-family: 'Inter', sans-serif;
+  box-shadow: 0 4px 15px var(--shadow-color);
+  border: 1.5px solid var(--card-border);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.nodeCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px var(--shadow-color);
+}
+
+.nodeMale {
+  border-color: rgba(96, 165, 250, 0.4);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.1), 0 4px 15px var(--shadow-color);
+}
+.nodeMale:hover {
+  border-color: rgba(96, 165, 250, 0.8);
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.2), 0 8px 25px var(--shadow-color);
+}
+
+.nodeFemale {
+  border-color: rgba(244, 114, 182, 0.4);
+  box-shadow: 0 0 15px rgba(219, 39, 119, 0.1), 0 4px 15px var(--shadow-color);
+}
+.nodeFemale:hover {
+  border-color: rgba(244, 114, 182, 0.8);
+  box-shadow: 0 0 25px rgba(219, 39, 119, 0.2), 0 8px 25px var(--shadow-color);
+}
+
+.nodeUnknown {
+  border-color: rgba(156, 163, 175, 0.3);
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.nodeBody {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 12px;
+}
+
+.nodeAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--card-border);
+}
+
+.avatarMale {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.avatarFemale {
+  background-color: rgba(219, 39, 119, 0.15);
+  color: #f472b6;
+  border-color: rgba(219, 39, 119, 0.3);
+}
+
+.avatarUnknown {
+  background-color: rgba(156, 163, 175, 0.1);
+  color: #9ca3af;
+  border-color: rgba(156, 163, 175, 0.2);
+}
+
+.nodePhoto {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.nodeDetails {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.nodeName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.italicUnknown {
+  font-style: italic;
+  opacity: 0.65;
+}
+
+.nodeNickname {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.nodeLifespan {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* Living status dot */
+.statusContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.statusLiving {
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseLiving 2s infinite;
+}
+
+.statusDeceased {
+  background-color: #9ca3af;
+  opacity: 0.6;
+}
+
+@keyframes pulseLiving {
+  0% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.9);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Custom Edge Labels */
+.edgeLabelBadge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--card-border);
+  box-shadow: 0 2px 8px var(--shadow-color);
+  backdrop-filter: blur(4px);
+  user-select: none;
+}
+
+.edgeLabelDefault {
+  background-color: var(--card-bg);
+  color: var(--text-muted);
+}
+
+.edgeLabelParentChild {
+  background-color: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.edgeLabelMarried {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.edgeLabelDivorced {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.edgeLabelSeparated {
+  background-color: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+  border-color: rgba(249, 115, 22, 0.3);
+}
+
+.edgeLabelWidowed {
+  background-color: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+  border-color: rgba(156, 163, 175, 0.3);
+}
+
+.edgeLabelPartner {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+/* React Flow customizations */
+:global(.react-flow__panel) {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--card-border) !important;
+  border-radius: 8px !important;
+  padding: 6px !important;
+  box-shadow: 0 4px 12px var(--shadow-color) !important;
+}
+
+:global(.react-flow__controls-button) {
+  border-bottom: 1px solid var(--border-color) !important;
+  color: var(--text-color) !important;
+  fill: var(--text-color) !important;
+}
+:global(.react-flow__controls-button:hover) {
+  background-color: var(--secondary-btn-hover) !important;
+}
+

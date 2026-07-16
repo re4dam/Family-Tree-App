@@ -50,10 +50,10 @@ Reach for GraphQL (whichever backend you pick) only if you expect the frontend's
 
 ## 2. Graph Visualization
 
-- [ ] Render people as nodes, relationships as edges
-- [ ] Distinguish edge styles: parent-child vs partner vs divorced vs adoptive
-- [ ] Layout algorithm for generational alignment (siblings same row, ancestors above, descendants below)
-- [ ] Zoom / pan
+- [x] Render people as nodes, relationships as edges
+- [x] Distinguish edge styles: parent-child vs partner vs divorced vs adoptive
+- [x] Layout algorithm for generational alignment (siblings same row, ancestors above, descendants below)
+- [x] Zoom / pan
 - [ ] Collapse/expand a branch (hide descendants or ancestors of a node)
 - [ ] Handle large trees — clustering, virtualization, or lazy-loading off-screen nodes
 - [ ] Highlight direct lineage path between two selected people

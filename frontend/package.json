@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@apollo/client": "^4.2.7",
+    "@dagrejs/dagre": "^3.0.0",
     "@xyflow/react": "^12.11.2",
     "graphql": "^16.14.2",
     "jwt-decode": "^4.0.0",
