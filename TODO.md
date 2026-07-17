@@ -140,7 +140,7 @@ time implementation starts:
 2. [x] Authentication + role model (Viewer/Admin/Super Admin) — build this early
    since editing is gated by it from day one, not bolted on after
 3. [x] CRUD for Person + relationships (no visualization yet — plain forms/list)
-4. Graph visualization (read-only, network view)
+4. [x] Graph visualization (read-only, network view)
 5. Node click → detail panel
 6. Search
 7. Editing from within the graph/panel

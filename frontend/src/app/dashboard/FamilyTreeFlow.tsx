@@ -53,7 +53,7 @@ export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlow
   }, [people, relationships]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       <div className={styles.graphViewport}>
         <ReactFlow
           nodes={nodes}
