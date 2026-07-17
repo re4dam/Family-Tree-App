@@ -62,13 +62,13 @@ Reach for GraphQL (whichever backend you pick) only if you expect the frontend's
   - Pedigree chart (strict ancestors-only, fan or tree layout from one person up)
   - Descendant chart (strict descendants-only from one person down)
 
-## 3. Detail Panel (Left Drawer)
+## 3. Detail Panel (Right Drawer) [COMPLETED]
 
-- [ ] Opens on node click/tap, shows selected person's full profile
-- [ ] Sections: basic info, relationships (parents/children/partners), photos, notes
-- [ ] Edit-in-place from the panel (create/update without a separate modal)
-- [ ] "Jump to" links from listed relatives (clicking a parent's name re-centers graph + panel on them)
-- [ ] Close panel returns graph to previous view state (no re-render/reset)
+- [x] Opens on node click/tap, shows selected person's full profile
+- [x] Sections: basic info, relationships (parents/children/partners), photos, notes
+- [x] Edit-in-place from the panel (create/update without a separate modal)
+- [x] "Jump to" links from listed relatives (clicking a parent's name re-centers graph + panel on them)
+- [x] Close panel returns graph to previous view state (no re-render/reset)
 
 ## 4. Accounts & Permissions (multi-family-member access)
 
@@ -141,9 +141,9 @@ time implementation starts:
    since editing is gated by it from day one, not bolted on after
 3. [x] CRUD for Person + relationships (no visualization yet — plain forms/list)
 4. [x] Graph visualization (read-only, network view)
-5. Node click → detail panel
+5. [x] Node click → detail panel
 6. Search
-7. Editing from within the graph/panel
+7. [x] Editing from within the graph/panel
 8. Merge tool for duplicate people
 9. Pedigree/descendant view modes, branch collapse, large-tree performance
 10. Shareable expiring access links (view-only, account-free)

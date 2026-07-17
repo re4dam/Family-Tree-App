@@ -8,7 +8,7 @@ import { useQuery, useMutation } from "@apollo/client/react";
 import { 
   GitBranch, Trash2, Edit, Plus, ArrowRightLeft, GitFork, 
   Info, Home, LogOut, Calendar, UserPlus, X, AlertTriangle,
-  Network, Users, ChevronLeft, ChevronRight
+  Network, Users, ChevronLeft, ChevronRight, Check, MapPin
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../ThemeToggle";
@@ -105,6 +105,31 @@ export default function DashboardClient() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Drawer States
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<"overview" | "family" | "notes">("overview");
+
+  // Inline Edit states
+  const [editSection, setEditSection] = useState<"profile" | "lifespan" | "notes" | null>(null);
+  
+  // Profile inline fields
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editNickname, setEditNickname] = useState("");
+  const [editGender, setEditGender] = useState("MALE");
+
+  // Lifespan inline fields
+  const [editBirthDate, setEditBirthDate] = useState("");
+  const [editEstBirthYear, setEditEstBirthYear] = useState("");
+  const [editDeathDate, setEditDeathDate] = useState("");
+  const [editIsLiving, setEditIsLiving] = useState(true);
+  const [editBirthPlace, setEditBirthPlace] = useState("");
+
+  // Notes inline fields
+  const [editNotes, setEditNotes] = useState("");
+
   useEffect(() => {
     const saved = localStorage.getItem("sidebar_collapsed");
     if (saved === "true") {
@@ -116,6 +141,177 @@ export default function DashboardClient() {
     const next = !sidebarCollapsed;
     setSidebarCollapsed(next);
     localStorage.setItem("sidebar_collapsed", String(next));
+  };
+
+  const handleSelectPerson = (id: string) => {
+    setSelectedPersonId(id);
+    setFocusedNodeId(id);
+    setIsDrawerOpen(true);
+    setEditSection(null);
+    setDrawerTab("overview");
+  };
+
+  const handleCloseDrawer = () => {
+    setIsDrawerOpen(false);
+    setFocusedNodeId(null);
+    setEditSection(null);
+  };
+
+  const handleJumpToRelative = (id: string) => {
+    setSelectedPersonId(id);
+    setFocusedNodeId(id);
+    setEditSection(null);
+  };
+
+  const getSelectedPersonRelatives = (personId: string) => {
+    if (!data || !data.people || !data.relationships) {
+      return { parents: [], spouses: [], children: [], siblings: [] };
+    }
+
+    const peopleMap = new Map(data.people.map((p: any) => [p.id, p]));
+    const parents: any[] = [];
+    const spouses: any[] = [];
+    const children: any[] = [];
+    const siblings: any[] = [];
+
+    const selected = peopleMap.get(personId);
+    if (!selected) {
+      return { parents: [], spouses: [], children: [], siblings: [] };
+    }
+
+    data.relationships.forEach((rel: any) => {
+      if (rel.type === "PARENT_CHILD" && rel.targetPersonId === personId) {
+        const parent = peopleMap.get(rel.sourcePersonId);
+        if (parent) {
+          parents.push({
+            person: parent,
+            relationType: rel.parentChildType,
+          });
+        }
+      }
+
+      if (rel.type === "PARENT_CHILD" && rel.sourcePersonId === personId) {
+        const child = peopleMap.get(rel.targetPersonId);
+        if (child) {
+          children.push({
+            person: child,
+            relationType: rel.parentChildType,
+          });
+        }
+      }
+
+      if (rel.type === "PARTNER") {
+        if (rel.sourcePersonId === personId) {
+          const partner = peopleMap.get(rel.targetPersonId);
+          if (partner) {
+            spouses.push({
+              person: partner,
+              partnerType: rel.partnerType,
+              startYear: rel.startYear,
+              endYear: rel.endYear,
+            });
+          }
+        } else if (rel.targetPersonId === personId) {
+          const partner = peopleMap.get(rel.sourcePersonId);
+          if (partner) {
+            spouses.push({
+              person: partner,
+              partnerType: rel.partnerType,
+              startYear: rel.startYear,
+              endYear: rel.endYear,
+            });
+          }
+        }
+      }
+    });
+
+    const parentIds = parents.map((p: any) => p.person.id);
+    if (parentIds.length > 0) {
+      const siblingIds = new Set<string>();
+      data.relationships.forEach((rel: any) => {
+        if (
+          rel.type === "PARENT_CHILD" &&
+          parentIds.includes(rel.sourcePersonId) &&
+          rel.targetPersonId !== personId
+        ) {
+          siblingIds.add(rel.targetPersonId);
+        }
+      });
+      siblingIds.forEach((id) => {
+        const sibling = peopleMap.get(id);
+        if (sibling) {
+          siblings.push({ person: sibling });
+        }
+      });
+    }
+
+    return { parents, spouses, children, siblings };
+  };
+
+  const handleStartEdit = (section: "profile" | "lifespan" | "notes") => {
+    const person = data?.people?.find((p: any) => p.id === selectedPersonId);
+    if (!person) return;
+
+    setEditSection(section);
+    
+    if (section === "profile") {
+      setEditFirstName(person.firstName || "");
+      setEditLastName(person.lastName || "");
+      setEditNickname(person.nickname || "");
+      setEditGender(person.gender || "MALE");
+    } else if (section === "lifespan") {
+      setEditBirthDate(person.birthDate ? person.birthDate.substring(0, 10) : "");
+      setEditEstBirthYear(person.estimatedBirthYear ? String(person.estimatedBirthYear) : "");
+      setEditDeathDate(person.deathDate ? person.deathDate.substring(0, 10) : "");
+      setEditIsLiving(person.isLiving ?? true);
+      setEditBirthPlace(person.birthPlace || "");
+    } else if (section === "notes") {
+      setEditNotes(person.notes || "");
+    }
+  };
+
+  const handleSaveEdit = async (section: "profile" | "lifespan" | "notes") => {
+    const person = data?.people?.find((p: any) => p.id === selectedPersonId);
+    if (!person) return;
+
+    const input: any = {};
+
+    if (section === "profile") {
+      input.firstName = editFirstName;
+      input.lastName = editLastName;
+      input.nickname = editNickname || null;
+      input.gender = editGender;
+    } else if (section === "lifespan") {
+      input.birthPlace = editBirthPlace || null;
+      
+      if (editBirthDate) {
+        input.birthDate = `${editBirthDate}T00:00:00Z`;
+        input.estimatedBirthYear = null;
+      } else if (editEstBirthYear) {
+        input.birthDate = null;
+        input.estimatedBirthYear = parseInt(editEstBirthYear, 10) || null;
+      } else {
+        input.birthDate = null;
+        input.estimatedBirthYear = null;
+      }
+
+      if (editIsLiving) {
+        input.deathDate = null;
+      } else if (editDeathDate) {
+        input.deathDate = `${editDeathDate}T00:00:00Z`;
+      } else {
+        input.deathDate = null;
+      }
+    } else if (section === "notes") {
+      input.notes = editNotes || null;
+    }
+
+    await updatePerson({
+      variables: {
+        id: selectedPersonId,
+        input,
+      }
+    });
   };
 
   // Individual Form States
@@ -151,7 +347,18 @@ export default function DashboardClient() {
   });
 
   const [createPerson] = useMutation(CREATE_PERSON);
-  const [updatePerson] = useMutation(UPDATE_PERSON);
+  const [updatePerson, { loading: updateLoading }] = useMutation(UPDATE_PERSON, {
+    onCompleted: () => {
+      setEditSection(null);
+      refetch();
+    },
+    onError: (err) => {
+      setErrorMsg("Failed to update profile: " + err.message);
+    }
+  });
+
+  const selectedPerson = data?.people?.find((p: any) => p.id === selectedPersonId);
+  const relatives = selectedPerson ? getSelectedPersonRelatives(selectedPerson.id) : null;
   const [deletePerson] = useMutation(DELETE_PERSON);
   const [createRelationship] = useMutation(CREATE_RELATIONSHIP);
   const [deleteRelationship] = useMutation(DELETE_RELATIONSHIP);
@@ -441,7 +648,12 @@ export default function DashboardClient() {
                 {data?.people?.length === 0 ? (
                   <div className={styles.emptyState}>No individuals added yet. Click "Add Individual" to begin.</div>
                 ) : (
-                  <FamilyTreeFlow people={data.people} relationships={data.relationships} />
+                  <FamilyTreeFlow 
+                    people={data.people} 
+                    relationships={data.relationships} 
+                    onSelectPerson={handleSelectPerson}
+                    focusedNodeId={focusedNodeId}
+                  />
                 )}
               </>
             )}
@@ -480,12 +692,19 @@ export default function DashboardClient() {
                         {data.people.map((person: any) => (
                           <tr key={person.id} className={styles.tr}>
                             <td className={styles.td} style={{ fontWeight: 600 }}>
-                              {person.isUnknown ? (
-                                <span style={{ fontStyle: "italic", opacity: 0.7 }}>[Unknown Placeholder]</span>
-                              ) : (
-                                `${person.firstName} ${person.lastName}`
-                              )}
-                              {person.nickname && ` (${person.nickname})`}
+                              <button 
+                                type="button" 
+                                className={styles.listSelectLink}
+                                onClick={() => handleSelectPerson(person.id)}
+                                title="View Details in Drawer"
+                              >
+                                {person.isUnknown ? (
+                                  <span style={{ fontStyle: "italic", opacity: 0.7 }}>[Unknown Placeholder]</span>
+                                ) : (
+                                  `${person.firstName} ${person.lastName}`
+                                )}
+                                {person.nickname && ` (${person.nickname})`}
+                              </button>
                             </td>
                             <td className={styles.td}>
                               <span className={`${styles.badge} ${person.gender === "MALE" ? styles.badgeMale : person.gender === "FEMALE" ? styles.badgeFemale : styles.badgeUnknown}`}>
@@ -599,6 +818,389 @@ export default function DashboardClient() {
           </div>
         )}
       </main>
+
+      {/* Right Detail Drawer */}
+      <aside className={`${styles.drawer} ${isDrawerOpen && selectedPerson ? styles.drawerOpen : ""}`}>
+        {selectedPerson && (
+          <>
+            <div className={styles.drawerHeader}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+                <span className={styles.drawerTitleBadge}>Individual Profile</span>
+                <button 
+                  type="button" 
+                  className={styles.drawerCloseBtn} 
+                  onClick={handleCloseDrawer}
+                  title="Close Drawer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Profile Card Header */}
+              <div className={styles.drawerProfileHero}>
+                <div className={`${styles.drawerAvatar} ${selectedPerson.gender === "FEMALE" ? styles.avatarFemale : selectedPerson.gender === "MALE" ? styles.avatarMale : ""}`}>
+                  {selectedPerson.isUnknown ? "?" : (selectedPerson.firstName?.[0] || "") + (selectedPerson.lastName?.[0] || "")}
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  {editSection === "profile" ? (
+                    <div className={styles.inlineEditGroup}>
+                      <input 
+                        type="text" 
+                        value={editFirstName} 
+                        onChange={(e) => setEditFirstName(e.target.value)} 
+                        placeholder="First Name"
+                        className={styles.inlineInput}
+                      />
+                      <input 
+                        type="text" 
+                        value={editLastName} 
+                        onChange={(e) => setEditLastName(e.target.value)} 
+                        placeholder="Last Name"
+                        className={styles.inlineInput}
+                      />
+                      <input 
+                        type="text" 
+                        value={editNickname} 
+                        onChange={(e) => setEditNickname(e.target.value)} 
+                        placeholder="Nickname"
+                        className={styles.inlineInput}
+                      />
+                      <select 
+                        value={editGender} 
+                        onChange={(e) => setEditGender(e.target.value)}
+                        className={styles.inlineSelect}
+                      >
+                        <option value="MALE">Male</option>
+                        <option value="FEMALE">Female</option>
+                        <option value="UNKNOWN">Unknown</option>
+                      </select>
+                      <div className={styles.inlineActions}>
+                        <button type="button" onClick={() => handleSaveEdit("profile")} className={styles.inlineSaveBtn} disabled={updateLoading}>
+                          <Check size={14} /> Save
+                        </button>
+                        <button type="button" onClick={() => setEditSection(null)} className={styles.inlineCancelBtn}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ position: "relative" }}>
+                      <h3 className={styles.drawerName}>
+                        {selectedPerson.isUnknown ? (
+                          <span style={{ fontStyle: "italic", opacity: 0.8 }}>[Unknown Placeholder]</span>
+                        ) : (
+                          `${selectedPerson.firstName} ${selectedPerson.lastName}`
+                        )}
+                        {!isReadOnly && (
+                          <button 
+                            type="button" 
+                            className={styles.inlineEditTrigger} 
+                            onClick={() => handleStartEdit("profile")}
+                            title="Edit Name & Gender"
+                          >
+                            <Edit size={12} />
+                          </button>
+                        )}
+                      </h3>
+                      {selectedPerson.nickname && <span className={styles.drawerNickname}>"{selectedPerson.nickname}"</span>}
+                      <span className={`${styles.badge} ${selectedPerson.gender === "MALE" ? styles.badgeMale : selectedPerson.gender === "FEMALE" ? styles.badgeFemale : styles.badgeUnknown}`} style={{ marginTop: "6px", display: "inline-block" }}>
+                        {selectedPerson.gender}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className={styles.drawerTabs}>
+              <button 
+                type="button" 
+                className={`${styles.drawerTab} ${drawerTab === "overview" ? styles.drawerTabActive : ""}`}
+                onClick={() => setDrawerTab("overview")}
+              >
+                Overview
+              </button>
+              <button 
+                type="button" 
+                className={`${styles.drawerTab} ${drawerTab === "family" ? styles.drawerTabActive : ""}`}
+                onClick={() => setDrawerTab("family")}
+              >
+                Direct Family
+              </button>
+              <button 
+                type="button" 
+                className={`${styles.drawerTab} ${drawerTab === "notes" ? styles.drawerTabActive : ""}`}
+                onClick={() => setDrawerTab("notes")}
+              >
+                Biography
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className={styles.drawerContent}>
+              {drawerTab === "overview" && (
+                <div className={styles.drawerSection}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <h4 className={styles.sectionTitle}>Overview</h4>
+                    {!isReadOnly && editSection !== "lifespan" && (
+                      <button 
+                        type="button" 
+                        className={styles.inlineEditTriggerSec} 
+                        onClick={() => handleStartEdit("lifespan")}
+                      >
+                        <Edit size={12} /> Edit Lifespan
+                      </button>
+                    )}
+                  </div>
+
+                  {editSection === "lifespan" ? (
+                    <div className={styles.inlineEditGroup}>
+                      <div className={styles.formCheck} style={{ marginBottom: "10px" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px" }}>
+                          <input 
+                            type="checkbox" 
+                            checked={editIsLiving} 
+                            onChange={(e) => setEditIsLiving(e.target.checked)} 
+                          />
+                          Is Living?
+                        </label>
+                      </div>
+                      
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                          Exact Birth Date:
+                          <input 
+                            type="date" 
+                            value={editBirthDate} 
+                            onChange={(e) => {
+                              setEditBirthDate(e.target.value);
+                              if (e.target.value) setEditEstBirthYear("");
+                            }} 
+                            className={styles.inlineInput}
+                          />
+                        </label>
+                        
+                        <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                          Estimated Birth Year (if date unknown):
+                          <input 
+                            type="number" 
+                            value={editEstBirthYear} 
+                            onChange={(e) => {
+                              setEditEstBirthYear(e.target.value);
+                              if (e.target.value) setEditBirthDate("");
+                            }} 
+                            placeholder="e.g. 1956"
+                            className={styles.inlineInput}
+                          />
+                        </label>
+
+                        {!editIsLiving && (
+                          <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                            Date of Death:
+                            <input 
+                              type="date" 
+                              value={editDeathDate} 
+                              onChange={(e) => setEditDeathDate(e.target.value)} 
+                              className={styles.inlineInput}
+                            />
+                          </label>
+                        )}
+
+                        <label style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                          Place of Birth:
+                          <input 
+                            type="text" 
+                            value={editBirthPlace} 
+                            onChange={(e) => setEditBirthPlace(e.target.value)} 
+                            placeholder="Birth Place"
+                            className={styles.inlineInput}
+                          />
+                        </label>
+                      </div>
+
+                      <div className={styles.inlineActions}>
+                        <button type="button" onClick={() => handleSaveEdit("lifespan")} className={styles.inlineSaveBtn} disabled={updateLoading}>
+                          <Check size={14} /> Save
+                        </button>
+                        <button type="button" onClick={() => setEditSection(null)} className={styles.inlineCancelBtn}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                      <div className={styles.metaRow}>
+                        <span className={styles.metaLabel}>Lifespan:</span>
+                        <span className={styles.metaValue}>{formatDateDisplay(selectedPerson)}</span>
+                      </div>
+                      <div className={styles.metaRow}>
+                        <span className={styles.metaLabel}>Living Status:</span>
+                        <span className={styles.metaValue}>
+                          <span className={selectedPerson.isLiving ? styles.statusLiving : styles.statusDeceased}>
+                            {selectedPerson.isLiving ? "Living" : "Deceased"}
+                          </span>
+                        </span>
+                      </div>
+                      <div className={styles.metaRow}>
+                        <span className={styles.metaLabel}>Place of Birth:</span>
+                        <span className={styles.metaValue} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                          <MapPin size={12} style={{ color: "var(--text-muted)" }} />
+                          {selectedPerson.birthPlace || "Unknown"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {drawerTab === "family" && relatives && (
+                <div className={styles.drawerSection}>
+                  <h4 className={styles.sectionTitle} style={{ marginBottom: "12px" }}>Direct Family Relationships</h4>
+                  
+                  {/* Parents */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <span className={styles.familyGroupLabel}>Parents</span>
+                    {relatives.parents.length === 0 ? (
+                      <div className={styles.emptyRelState}>No parents specified</div>
+                    ) : (
+                      <div className={styles.familyCardsGrid}>
+                        {relatives.parents.map((p: any) => (
+                          <button 
+                            key={p.person.id} 
+                            type="button" 
+                            className={`${styles.relativeCard} ${p.person.gender === "FEMALE" ? styles.relCardFemale : p.person.gender === "MALE" ? styles.relCardMale : ""}`}
+                            onClick={() => handleJumpToRelative(p.person.id)}
+                            title={`Focus on ${p.person.firstName}`}
+                          >
+                            <span className={styles.relCardName}>{p.person.firstName} {p.person.lastName}</span>
+                            <span className={styles.relCardRelation}>{p.relationType} PARENT</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Spouses/Partners */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <span className={styles.familyGroupLabel}>Partners / Spouses</span>
+                    {relatives.spouses.length === 0 ? (
+                      <div className={styles.emptyRelState}>No partners specified</div>
+                    ) : (
+                      <div className={styles.familyCardsGrid}>
+                        {relatives.spouses.map((s: any) => (
+                          <button 
+                            key={s.person.id} 
+                            type="button" 
+                            className={`${styles.relativeCard} ${s.person.gender === "FEMALE" ? styles.relCardFemale : s.person.gender === "MALE" ? styles.relCardMale : ""}`}
+                            onClick={() => handleJumpToRelative(s.person.id)}
+                            title={`Focus on ${s.person.firstName}`}
+                          >
+                            <span className={styles.relCardName}>{s.person.firstName} {s.person.lastName}</span>
+                            <span className={styles.relCardRelation}>
+                              {s.partnerType}
+                              {s.startYear ? ` (since ${s.startYear}${s.endYear ? ` - ${s.endYear}` : ""})` : ""}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Children */}
+                  <div style={{ marginBottom: "16px" }}>
+                    <span className={styles.familyGroupLabel}>Children</span>
+                    {relatives.children.length === 0 ? (
+                      <div className={styles.emptyRelState}>No children specified</div>
+                    ) : (
+                      <div className={styles.familyCardsGrid}>
+                        {relatives.children.map((c: any) => (
+                          <button 
+                            key={c.person.id} 
+                            type="button" 
+                            className={`${styles.relativeCard} ${c.person.gender === "FEMALE" ? styles.relCardFemale : c.person.gender === "MALE" ? styles.relCardMale : ""}`}
+                            onClick={() => handleJumpToRelative(c.person.id)}
+                            title={`Focus on ${c.person.firstName}`}
+                          >
+                            <span className={styles.relCardName}>{c.person.firstName} {c.person.lastName}</span>
+                            <span className={styles.relCardRelation}>{c.relationType} CHILD</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Siblings */}
+                  <div>
+                    <span className={styles.familyGroupLabel}>Siblings</span>
+                    {relatives.siblings.length === 0 ? (
+                      <div className={styles.emptyRelState}>No siblings detected</div>
+                    ) : (
+                      <div className={styles.familyCardsGrid}>
+                        {relatives.siblings.map((sib: any) => (
+                          <button 
+                            key={sib.person.id} 
+                            type="button" 
+                            className={`${styles.relativeCard} ${sib.person.gender === "FEMALE" ? styles.relCardFemale : sib.person.gender === "MALE" ? styles.relCardMale : ""}`}
+                            onClick={() => handleJumpToRelative(sib.person.id)}
+                            title={`Focus on ${sib.person.firstName}`}
+                          >
+                            <span className={styles.relCardName}>{sib.person.firstName} {sib.person.lastName}</span>
+                            <span className={styles.relCardRelation}>SIBLING</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              )}
+
+              {drawerTab === "notes" && (
+                <div className={styles.drawerSection}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <h4 className={styles.sectionTitle}>Biography & Notes</h4>
+                    {!isReadOnly && editSection !== "notes" && (
+                      <button 
+                        type="button" 
+                        className={styles.inlineEditTriggerSec} 
+                        onClick={() => handleStartEdit("notes")}
+                      >
+                        <Edit size={12} /> Edit Notes
+                      </button>
+                    )}
+                  </div>
+
+                  {editSection === "notes" ? (
+                    <div className={styles.inlineEditGroup}>
+                      <textarea 
+                        value={editNotes} 
+                        onChange={(e) => setEditNotes(e.target.value)} 
+                        rows={6}
+                        placeholder="Enter biographic notes..."
+                        className={styles.inlineTextarea}
+                      />
+                      <div className={styles.inlineActions}>
+                        <button type="button" onClick={() => handleSaveEdit("notes")} className={styles.inlineSaveBtn} disabled={updateLoading}>
+                          <Check size={14} /> Save
+                        </button>
+                        <button type="button" onClick={() => setEditSection(null)} className={styles.inlineCancelBtn}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className={styles.drawerNotesBody}>
+                      {selectedPerson.notes || "No biographic notes recorded for this individual."}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </aside>
 
       {/* ------------------------------------------------------------------------
           Individual Create/Edit Modal

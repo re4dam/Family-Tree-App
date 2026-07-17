@@ -9,7 +9,9 @@ import {
   useNodesState, 
   useEdgesState,
   Node,
-  Edge
+  Edge,
+  ReactFlowProvider,
+  useReactFlow
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -30,11 +32,14 @@ const EDGE_TYPES = {
 interface FamilyTreeFlowProps {
   people: GraphQLPerson[];
   relationships: GraphQLRelationship[];
+  onSelectPerson: (id: string) => void;
+  focusedNodeId: string | null;
 }
 
-export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlowProps) {
+function FlowCanvas({ people, relationships, onSelectPerson, focusedNodeId }: FamilyTreeFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const { fitView } = useReactFlow();
 
   const calculateLayout = () => {
     if (people && relationships) {
@@ -52,6 +57,21 @@ export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlow
     calculateLayout();
   }, [people, relationships]);
 
+  // Center and focus on a node when focusedNodeId changes
+  useEffect(() => {
+    if (focusedNodeId && nodes.some(n => n.id === focusedNodeId)) {
+      const timer = setTimeout(() => {
+        fitView({ 
+          nodes: [{ id: focusedNodeId }], 
+          duration: 800,
+          minZoom: 0.8,
+          maxZoom: 1.2
+        });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [focusedNodeId, nodes, fitView]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       <div className={styles.graphViewport}>
@@ -62,6 +82,7 @@ export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlow
           onEdgesChange={onEdgesChange}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
+          onNodeClick={(_, node) => onSelectPerson(node.id)}
           fitView
           minZoom={0.1}
           maxZoom={1.5}
@@ -73,6 +94,7 @@ export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlow
           <Controls />
           <Panel position="top-right">
             <button 
+              type="button"
               className={styles.resetLayoutBtn}
               onClick={calculateLayout}
               title="Recalculate and reset tree layout positions"
@@ -133,5 +155,13 @@ export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlow
         </ReactFlow>
       </div>
     </div>
+  );
+}
+
+export default function FamilyTreeFlow(props: FamilyTreeFlowProps) {
+  return (
+    <ReactFlowProvider>
+      <FlowCanvas {...props} />
+    </ReactFlowProvider>
   );
 }
