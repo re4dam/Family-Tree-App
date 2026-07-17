@@ -250,9 +250,91 @@ public class Mutation
         };
 
         db.People.AddRange(arthurJr, kay);
+
+        // 5. Additional Characters for Relationship Type Showcasing
+        // (Deceased 1968), Arthur Sr's first wife
+        var elsa = new Person
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Elsa",
+            LastName = "Pendragon",
+            Gender = Gender.Female,
+            BirthDate = new DateTime(1946, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            DeathDate = new DateTime(1968, 6, 1, 0, 0, 0, DateTimeKind.Utc),
+            Notes = "Arthur Sr's first wife (Deceased)."
+        };
+
+        // Arthur Sr's son with Elsa
+        var gawain = new Person
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Gawain",
+            LastName = "Pendragon",
+            Gender = Gender.Male,
+            BirthDate = new DateTime(1966, 10, 10, 0, 0, 0, DateTimeKind.Utc),
+            Notes = "Arthur Sr's son from his first marriage."
+        };
+
+        // Adopted son of Uther & Igraine
+        var mordred = new Person
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Mordred",
+            LastName = "Pendragon",
+            Gender = Gender.Male,
+            BirthDate = new DateTime(2005, 5, 5, 0, 0, 0, DateTimeKind.Utc),
+            Notes = "Adopted son of Uther and Igraine."
+        };
+
+        // Foster son of Morgana
+        var galahad = new Person
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Galahad",
+            LastName = "Pendragon",
+            Gender = Gender.Male,
+            BirthDate = new DateTime(2008, 7, 7, 0, 0, 0, DateTimeKind.Utc),
+            Notes = "Foster son of Morgana."
+        };
+
+        // ex-husband of Morgana
+        var lot = new Person
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Lot",
+            LastName = "Orkney",
+            Gender = Gender.Male,
+            BirthDate = new DateTime(1970, 4, 15, 0, 0, 0, DateTimeKind.Utc),
+            Notes = "Morgana's ex-husband."
+        };
+
+        // ex-partner of Morgana (Separated)
+        var accolon = new Person
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Accolon",
+            LastName = "Gaul",
+            Gender = Gender.Male,
+            BirthDate = new DateTime(1973, 9, 3, 0, 0, 0, DateTimeKind.Utc),
+            Notes = "Morgana's ex-partner."
+        };
+
+        // Guardian relationship from Arthur Sr.
+        var lancelot = new Person
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Lancelot",
+            LastName = "Du Lac",
+            Nickname = "Sir Lancelot",
+            Gender = Gender.Male,
+            BirthDate = new DateTime(1985, 12, 12, 0, 0, 0, DateTimeKind.Utc),
+            Notes = "Arthur Sr's ward and champion."
+        };
+
+        db.People.AddRange(elsa, gawain, mordred, galahad, lot, accolon, lancelot);
         await db.SaveChangesAsync();
 
-        // 5. Connect Relationships
+        // 6. Connect Relationships
         // Arthur Sr & Guinevere Marriage
         var grandparentsMarriage = new Relationship
         {
@@ -275,7 +357,43 @@ public class Mutation
             StartYear = 1998
         };
 
-        db.Relationships.AddRange(grandparentsMarriage, parentsMarriage);
+        // Arthur Sr & Elsa Marriage (Widowed)
+        var arthurElsaMarriage = new Relationship
+        {
+            Id = Guid.NewGuid(),
+            SourcePersonId = arthurSr.Id,
+            TargetPersonId = elsa.Id,
+            Type = RelationshipType.Partner,
+            PartnerType = PartnerType.Widowed,
+            StartYear = 1965,
+            EndYear = 1968
+        };
+
+        // Morgana & Lot Marriage (Divorced)
+        var morganaLotMarriage = new Relationship
+        {
+            Id = Guid.NewGuid(),
+            SourcePersonId = morgana.Id,
+            TargetPersonId = lot.Id,
+            Type = RelationshipType.Partner,
+            PartnerType = PartnerType.Divorced,
+            StartYear = 1995,
+            EndYear = 2002
+        };
+
+        // Morgana & Accolon Relationship (Separated)
+        var morganaAccolonRel = new Relationship
+        {
+            Id = Guid.NewGuid(),
+            SourcePersonId = morgana.Id,
+            TargetPersonId = accolon.Id,
+            Type = RelationshipType.Partner,
+            PartnerType = PartnerType.Separated,
+            StartYear = 2005,
+            EndYear = 2010
+        };
+
+        db.Relationships.AddRange(grandparentsMarriage, parentsMarriage, arthurElsaMarriage, morganaLotMarriage, morganaAccolonRel);
 
         // Children of Generation 1 (Arthur Sr & Guinevere -> Uther & Morgana)
         db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = arthurSr.Id, TargetPersonId = uther.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
@@ -283,11 +401,28 @@ public class Mutation
         db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = guinevere.Id, TargetPersonId = uther.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
         db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = guinevere.Id, TargetPersonId = morgana.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
 
+        // Arthur Sr & Elsa -> Gawain (Biological)
+        db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = arthurSr.Id, TargetPersonId = gawain.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
+        db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = elsa.Id, TargetPersonId = gawain.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
+        
+        // Guinevere -> Gawain (Step-child)
+        db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = guinevere.Id, TargetPersonId = gawain.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Step });
+
         // Children of Generation 2 (Uther & Igraine -> Arthur Jr & Kay)
         db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = uther.Id, TargetPersonId = arthurJr.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
         db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = uther.Id, TargetPersonId = kay.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
         db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = igraine.Id, TargetPersonId = arthurJr.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
         db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = igraine.Id, TargetPersonId = kay.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Biological });
+
+        // Adopted Child: Mordred of Uther & Igraine
+        db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = uther.Id, TargetPersonId = mordred.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Adoptive });
+        db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = igraine.Id, TargetPersonId = mordred.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Adoptive });
+
+        // Foster Child: Galahad of Morgana
+        db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = morgana.Id, TargetPersonId = galahad.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Foster });
+
+        // Guardian Child: Lancelot Du Lac of Arthur Sr
+        db.Relationships.Add(new Relationship { Id = Guid.NewGuid(), SourcePersonId = arthurSr.Id, TargetPersonId = lancelot.Id, Type = RelationshipType.ParentChild, ParentChildType = ParentChildType.Guardian });
 
         await db.SaveChangesAsync();
         return true;

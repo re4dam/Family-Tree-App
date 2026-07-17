@@ -81,6 +81,55 @@ export default function FamilyTreeFlow({ people, relationships }: FamilyTreeFlow
               Reset View & Layout
             </button>
           </Panel>
+          <Panel position="bottom-right">
+            <div className={styles.legendContainer}>
+              <h4 className={styles.legendTitle}>Relationship Legend</h4>
+              <div className={styles.legendGrid}>
+                <div className={styles.legendSection}>
+                  <h5>Parent-Child</h5>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineBio}`}></span>
+                    <span>Biological</span>
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineAdoptive}`}></span>
+                    <span>Adoptive</span>
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineStep}`}></span>
+                    <span>Step</span>
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineFoster}`}></span>
+                    <span>Foster</span>
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineGuardian}`}></span>
+                    <span>Guardian</span>
+                  </div>
+                </div>
+                <div className={styles.legendSection}>
+                  <h5>Partnership</h5>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineMarried}`}></span>
+                    <span>Married</span>
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineDivorced}`}></span>
+                    <span>Divorced</span>
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineSeparated}`}></span>
+                    <span>Separated</span>
+                  </div>
+                  <div className={styles.legendItem}>
+                    <span className={`${styles.legendLine} ${styles.lineWidowed}`}></span>
+                    <span>Widowed</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Panel>
         </ReactFlow>
       </div>
     </div>

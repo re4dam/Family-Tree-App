@@ -763,3 +763,108 @@
   transform: translateY(0);
 }
 
+.legendContainer {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px var(--shadow-color);
+  backdrop-filter: blur(8px);
+  max-width: 280px;
+  color: var(--text-color);
+  font-family: inherit;
+  pointer-events: auto;
+}
+
+.legendTitle {
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-color);
+}
+
+.legendGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.legendSection h5 {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: var(--text-color);
+}
+
+.legendLine {
+  width: 24px;
+  height: 4px;
+  border-radius: 1px;
+  display: inline-block;
+}
+
+/* Line styles for legend */
+.lineBio {
+  background-color: #6366f1;
+}
+.lineAdoptive {
+  border-top: 2px dashed #818cf8;
+  height: 0;
+}
+.lineStep {
+  border-top: 2px dotted #a78bfa;
+  height: 0;
+}
+.lineFoster {
+  border-top: 2px dashed #34d399;
+  height: 0;
+}
+.lineGuardian {
+  border-top: 2px dashed #fb7185;
+  height: 0;
+}
+
+.lineMarried {
+  border-top: 2px solid #fbbf24;
+  border-bottom: 2px solid #fbbf24;
+  height: 6px;
+  width: 24px;
+  box-sizing: border-box;
+}
+.lineDivorced {
+  border-top: 2px solid #ef4444;
+  border-bottom: 2px solid #ef4444;
+  height: 6px;
+  width: 24px;
+  box-sizing: border-box;
+}
+.lineSeparated {
+  border-top: 2px solid #f97316;
+  border-bottom: 2px solid #f97316;
+  height: 6px;
+  width: 24px;
+  box-sizing: border-box;
+}
+.lineWidowed {
+  border-top: 2px solid #9ca3af;
+  border-bottom: 2px solid #9ca3af;
+  height: 6px;
+  width: 24px;
+  box-sizing: border-box;
+}
+
