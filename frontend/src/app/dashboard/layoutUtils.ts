@@ -104,6 +104,7 @@ export function getLayoutedElements(
         partnerType: rel.partnerType,
         startYear: rel.startYear,
         endYear: rel.endYear,
+        isFaded: (rel as any).isFaded,
       },
     };
   });

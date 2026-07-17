@@ -8,7 +8,8 @@ import { useQuery, useMutation } from "@apollo/client/react";
 import { 
   GitBranch, Trash2, Edit, Plus, ArrowRightLeft, GitFork, 
   Info, Home, LogOut, Calendar, UserPlus, X, AlertTriangle,
-  Network, Users, ChevronLeft, ChevronRight, Check, MapPin
+  Network, Users, ChevronLeft, ChevronRight, Check, MapPin,
+  Search, Filter, SlidersHorizontal, RefreshCw, AlertCircle, Sparkles
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../ThemeToggle";
@@ -97,13 +98,100 @@ const DELETE_RELATIONSHIP = gql`
   }
 `;
 
+const GET_DUPLICATES = gql`
+  query GetPotentialDuplicates {
+    potentialDuplicates {
+      personA {
+        id
+        firstName
+        lastName
+        gender
+        birthDate
+        estimatedBirthYear
+        deathDate
+        birthPlace
+        photoUrl
+        notes
+      }
+      personB {
+        id
+        firstName
+        lastName
+        gender
+        birthDate
+        estimatedBirthYear
+        deathDate
+        birthPlace
+        photoUrl
+        notes
+      }
+      confidence
+      matchReason
+    }
+  }
+`;
+
+const MERGE_PEOPLE = gql`
+  mutation MergePeople($sourceId: UUID!, $targetId: UUID!) {
+    mergePeople(sourceId: $sourceId, targetId: $targetId) {
+      id
+      firstName
+      lastName
+    }
+  }
+`;
+
 export default function DashboardClient() {
   const { user, logout, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"people" | "relationships" | "graph">("graph");
+  // Apollo operations
+  const { data, loading, error, refetch } = useQuery<any>(GET_ALL_DATA, {
+    skip: !user,
+  });
+
+  const [createPerson] = useMutation(CREATE_PERSON);
+  const [updatePerson, { loading: updateLoading }] = useMutation(UPDATE_PERSON, {
+    onCompleted: () => {
+      setEditSection(null);
+      refetch();
+    },
+    onError: (err) => {
+      setErrorMsg("Failed to update profile: " + err.message);
+    }
+  });
+
+  const [deletePerson] = useMutation(DELETE_PERSON);
+  const [createRelationship] = useMutation(CREATE_RELATIONSHIP);
+  const [deleteRelationship] = useMutation(DELETE_RELATIONSHIP);
+
+  const [activeTab, setActiveTab] = useState<"people" | "relationships" | "graph" | "duplicates">("graph");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Search States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  // Filter States
+  const [showFilters, setShowFilters] = useState(false);
+  const [genderFilter, setGenderFilter] = useState<string>("ALL");
+  const [centuryFilter, setCenturyFilter] = useState<string>("ALL");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [filterMode, setFilterMode] = useState<"highlight" | "hide">("highlight");
+
+  // Lineage Tracer States
+  const [traceSourceId, setTraceSourceId] = useState<string>("");
+  const [traceTargetId, setTraceTargetId] = useState<string>("");
+  const [lineagePathNodeIds, setLineagePathNodeIds] = useState<Set<string>>(new Set());
+  const [lineagePathEdgeIds, setLineagePathEdgeIds] = useState<Set<string>>(new Set());
+
+  // Merge States
+  const [activeMergePair, setActiveMergePair] = useState<any | null>(null);
+  const [mergeKeepId, setMergeKeepId] = useState<string>("");
+  const [mergeDiscardId, setMergeDiscardId] = useState<string>("");
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
 
   // Drawer States
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
@@ -141,6 +229,548 @@ export default function DashboardClient() {
     const next = !sidebarCollapsed;
     setSidebarCollapsed(next);
     localStorage.setItem("sidebar_collapsed", String(next));
+  };
+
+  // ------------------------------------------------------------------------------
+  // Search, Filter & Lineage Tracer Business Logic
+  // ------------------------------------------------------------------------------
+
+  const findLineagePath = (sourceId: string, targetId: string) => {
+    if (!sourceId || !targetId || sourceId === targetId) return { nodes: new Set<string>(), edges: new Set<string>() };
+
+    const adj: { [key: string]: { node: string, edge: string }[] } = {};
+    data?.people?.forEach((p: any) => adj[p.id] = []);
+    
+    data?.relationships?.forEach((rel: any) => {
+      if (adj[rel.sourcePersonId] && adj[rel.targetPersonId]) {
+        adj[rel.sourcePersonId].push({ node: rel.targetPersonId, edge: rel.id });
+        adj[rel.targetPersonId].push({ node: rel.sourcePersonId, edge: rel.id });
+      }
+    });
+
+    const queue: string[] = [sourceId];
+    const visited = new Set<string>([sourceId]);
+    const parent: { [key: string]: { node: string, edge: string } } = {};
+
+    let found = false;
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (curr === targetId) {
+        found = true;
+        break;
+      }
+
+      const neighbors = adj[curr] || [];
+      for (const neighbor of neighbors) {
+        if (!visited.has(neighbor.node)) {
+          visited.add(neighbor.node);
+          parent[neighbor.node] = { node: curr, edge: neighbor.edge };
+          queue.push(neighbor.node);
+        }
+      }
+    }
+
+    if (!found) return { nodes: new Set<string>(), edges: new Set<string>() };
+
+    const pathNodes = new Set<string>();
+    const pathEdges = new Set<string>();
+    
+    let temp = targetId;
+    pathNodes.add(temp);
+    
+    while (temp !== sourceId) {
+      const edgeInfo = parent[temp];
+      if (!edgeInfo) break;
+      pathNodes.add(edgeInfo.node);
+      pathEdges.add(edgeInfo.edge);
+      temp = edgeInfo.node;
+    }
+
+    return { nodes: pathNodes, edges: pathEdges };
+  };
+
+  useEffect(() => {
+    if (traceSourceId && traceTargetId) {
+      const { nodes, edges } = findLineagePath(traceSourceId, traceTargetId);
+      setLineagePathNodeIds(nodes);
+      setLineagePathEdgeIds(edges);
+    } else {
+      setLineagePathNodeIds(new Set<string>());
+      setLineagePathEdgeIds(new Set<string>());
+    }
+  }, [traceSourceId, traceTargetId, data]);
+
+  const isFilterActive = 
+    genderFilter !== "ALL" || 
+    centuryFilter !== "ALL" || 
+    locationFilter.trim() !== "" || 
+    (traceSourceId && traceTargetId);
+
+  const matchesFilter = (p: any) => {
+    if (genderFilter !== "ALL" && p.gender !== genderFilter) return false;
+    
+    if (centuryFilter !== "ALL") {
+      const year = p.birthDate ? new Date(p.birthDate).getFullYear() : p.estimatedBirthYear;
+      if (!year) return false;
+      if (centuryFilter === "18" && (year < 1701 || year > 1800)) return false;
+      if (centuryFilter === "19" && (year < 1801 || year > 1900)) return false;
+      if (centuryFilter === "20" && (year < 1901 || year > 2000)) return false;
+      if (centuryFilter === "21" && (year < 2001 || year > 2100)) return false;
+    }
+
+    if (locationFilter.trim() !== "") {
+      if (!p.birthPlace || !p.birthPlace.toLowerCase().includes(locationFilter.toLowerCase())) {
+        return false;
+      }
+    }
+
+    if (traceSourceId && traceTargetId) {
+      if (!lineagePathNodeIds.has(p.id)) return false;
+    }
+
+    return true;
+  };
+
+  const displayedPeople = React.useMemo(() => {
+    if (!data?.people) return [];
+    if (!isFilterActive) return data.people;
+
+    if (filterMode === "hide") {
+      return data.people.filter(matchesFilter);
+    } else {
+      return data.people.map((p: any) => ({
+        ...p,
+        isFaded: !matchesFilter(p)
+      }));
+    }
+  }, [data, isFilterActive, genderFilter, centuryFilter, locationFilter, filterMode, lineagePathNodeIds]);
+
+  const displayedRelationships = React.useMemo(() => {
+    if (!data?.relationships) return [];
+    if (!isFilterActive) return data.relationships;
+
+    if (filterMode === "hide") {
+      const keptIds = new Set(displayedPeople.map((p: any) => p.id));
+      return data.relationships.filter(
+        (r: any) => keptIds.has(r.sourcePersonId) && keptIds.has(r.targetPersonId)
+      );
+    } else {
+      return data.relationships.map((r: any) => {
+        let isFaded = false;
+        if (traceSourceId && traceTargetId) {
+          isFaded = !lineagePathEdgeIds.has(r.id);
+        } else {
+          const sourceFaded = !matchesFilter(data.people.find((p: any) => p.id === r.sourcePersonId));
+          const targetFaded = !matchesFilter(data.people.find((p: any) => p.id === r.targetPersonId));
+          isFaded = sourceFaded || targetFaded;
+        }
+        return {
+          ...r,
+          isFaded
+        };
+      });
+    }
+  }, [data, isFilterActive, displayedPeople, filterMode, traceSourceId, traceTargetId, lineagePathEdgeIds]);
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const results = data.people.filter((p: any) => {
+      if (p.isUnknown) return false;
+      
+      const firstName = p.firstName.toLowerCase();
+      const lastName = p.lastName.toLowerCase();
+      const nickname = p.nickname ? p.nickname.toLowerCase() : "";
+      const birthPlace = p.birthPlace ? p.birthPlace.toLowerCase() : "";
+      
+      const birthYear = p.birthDate ? new Date(p.birthDate).getFullYear().toString() : p.estimatedBirthYear?.toString() || "";
+      const deathYear = p.deathDate ? new Date(p.deathDate).getFullYear().toString() : "";
+
+      return terms.every(term => 
+        firstName.includes(term) ||
+        lastName.includes(term) ||
+        nickname.includes(term) ||
+        birthPlace.includes(term) ||
+        birthYear.includes(term) ||
+        deathYear.includes(term)
+      );
+    });
+
+    setSearchResults(results.slice(0, 10));
+  };
+
+  const FiltersCard = () => {
+    return (
+      <div className={styles.filtersCard}>
+        <div className={styles.filtersTitle}>Filters & Lineage</div>
+        
+        <div className={styles.filterGroup}>
+          <span className={styles.filterLabel}>Filter Mode</span>
+          <div className={styles.filterToggles}>
+            <button
+              type="button"
+              className={`${styles.filterToggleBtn} ${filterMode === "highlight" ? styles.filterToggleBtnActive : ""}`}
+              onClick={() => setFilterMode("highlight")}
+            >
+              Highlight
+            </button>
+            <button
+              type="button"
+              className={`${styles.filterToggleBtn} ${filterMode === "hide" ? styles.filterToggleBtnActive : ""}`}
+              onClick={() => setFilterMode("hide")}
+            >
+              Hide
+            </button>
+          </div>
+        </div>
+
+        <div className={styles.filterGroup}>
+          <span className={styles.filterLabel}>Gender</span>
+          <div className={styles.filterToggles}>
+            {["ALL", "MALE", "FEMALE"].map((gender) => (
+              <button
+                key={gender}
+                type="button"
+                className={`${styles.filterToggleBtn} ${genderFilter === gender ? styles.filterToggleBtnActive : ""}`}
+                onClick={() => setGenderFilter(gender)}
+              >
+                {gender === "ALL" ? "All" : gender === "MALE" ? "Male" : "Female"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.filterGroup}>
+          <span className={styles.filterLabel}>Birth Century</span>
+          <select
+            className={styles.filterSelect}
+            value={centuryFilter}
+            onChange={(e) => setCenturyFilter(e.target.value)}
+          >
+            <option value="ALL">All Centuries</option>
+            <option value="18">18th Century (1701–1800)</option>
+            <option value="19">19th Century (1801–1900)</option>
+            <option value="20">20th Century (1901–2000)</option>
+            <option value="21">21st Century (2001–2100)</option>
+          </select>
+        </div>
+
+        <div className={styles.filterGroup}>
+          <span className={styles.filterLabel}>Birth Location</span>
+          <input
+            type="text"
+            className={styles.filterInput}
+            placeholder="e.g. New York, London..."
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.filterGroup} style={{ borderTop: "1px solid rgba(255, 255, 255, 0.1)", paddingTop: "12px" }}>
+          <span className={styles.filterLabel} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <Sparkles size={12} style={{ color: "#fbbf24" }} />
+            <span>Trace Relationship Path</span>
+          </span>
+          <select
+            className={styles.filterSelect}
+            value={traceSourceId}
+            onChange={(e) => setTraceSourceId(e.target.value)}
+          >
+            <option value="">Select Person A...</option>
+            {data?.people?.filter((p: any) => !p.isUnknown).map((p: any) => (
+              <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+            ))}
+          </select>
+          <select
+            className={styles.filterSelect}
+            value={traceTargetId}
+            onChange={(e) => setTraceTargetId(e.target.value)}
+          >
+            <option value="">Select Person B...</option>
+            {data?.people?.filter((p: any) => !p.isUnknown).map((p: any) => (
+              <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+            ))}
+          </select>
+        </div>
+
+        {isFilterActive && (
+          <button
+            type="button"
+            className={styles.filterResetBtn}
+            onClick={() => {
+              setGenderFilter("ALL");
+              setCenturyFilter("ALL");
+              setLocationFilter("");
+              setTraceSourceId("");
+              setTraceTargetId("");
+            }}
+          >
+            Clear All Filters
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  // Duplicates Merge Sub-component
+  const DuplicateMergeTab = ({ isReadOnly, refetchMainData }: { isReadOnly: boolean, refetchMainData: any }) => {
+    const { data: dupData, loading: dupLoading, error: dupError, refetch: refetchDups } = useQuery<any>(GET_DUPLICATES, {
+      fetchPolicy: "network-only"
+    });
+
+    const [mergePeople] = useMutation(MERGE_PEOPLE, {
+      onError: (err) => {
+        alert("Merge failed: " + err.message);
+      },
+      onCompleted: () => {
+        setIsMergeModalOpen(false);
+        setActiveMergePair(null);
+        refetchMainData();
+        refetchDups();
+      }
+    });
+
+    const handleOpenMerge = (pair: any) => {
+      setActiveMergePair(pair);
+      setMergeKeepId(pair.personB.id);
+      setMergeDiscardId(pair.personA.id);
+      setIsMergeModalOpen(true);
+    };
+
+    const handleSwapMerge = () => {
+      const temp = mergeKeepId;
+      setMergeKeepId(mergeDiscardId);
+      setMergeDiscardId(temp);
+    };
+
+    const handleConfirmMerge = () => {
+      mergePeople({
+        variables: {
+          sourceId: mergeDiscardId,
+          targetId: mergeKeepId
+        }
+      });
+    };
+
+    if (dupLoading) return <div className={styles.emptyState}>Analyzing database for duplicates...</div>;
+    if (dupError) return <div className={styles.emptyState} style={{ color: "#ef4444" }}>Error detecting duplicates: {dupError.message}</div>;
+
+    const pairs = dupData?.potentialDuplicates || [];
+
+    return (
+      <>
+        <div className={styles.panelHeader}>
+          <h2 className={styles.panelTitle}>Likely Duplicate Detection & Merge Tool</h2>
+        </div>
+
+        {pairs.length === 0 ? (
+          <div className={styles.emptyState} style={{ flexDirection: "column", gap: "10px" }}>
+            <Sparkles size={48} style={{ color: "#10b981" }} />
+            <h3>All Clean!</h3>
+            <p style={{ color: "var(--text-muted)", fontSize: "14px" }}>No potential duplicate individuals detected in the tree.</p>
+          </div>
+        ) : (
+          <div className={styles.duplicatesList}>
+            {pairs.map((pair: any, idx: number) => {
+              const pA = pair.personA;
+              const pB = pair.personB;
+              const birthA = pA.birthDate ? new Date(pA.birthDate).getFullYear() : pA.estimatedBirthYear || "?";
+              const birthB = pB.birthDate ? new Date(pB.birthDate).getFullYear() : pB.estimatedBirthYear || "?";
+              
+              return (
+                <div key={idx} className={styles.duplicateCard}>
+                  <div className={styles.duplicateMeta}>
+                    <span className={styles.duplicateConfidenceBadge}>
+                      {Math.round(pair.confidence * 100)}% Match Confidence
+                    </span>
+                    <span className={styles.duplicateNames}>
+                      {pA.firstName} {pA.lastName} (born {birthA}) ↔ {pB.firstName} {pB.lastName} (born {birthB})
+                    </span>
+                    <span className={styles.duplicateReason}>
+                      <strong>Indicator:</strong> {pair.matchReason}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.createBtn}
+                    onClick={() => handleOpenMerge(pair)}
+                    disabled={isReadOnly}
+                    title={isReadOnly ? "Viewers cannot merge records" : ""}
+                  >
+                    <span>Compare & Merge</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {isMergeModalOpen && activeMergePair && (
+          <div className={styles.modalOverlay}>
+            <div className={styles.modalContent} style={{ width: "900px", maxWidth: "95%" }}>
+              <div className={styles.modalHeader}>
+                <h3>Compare & Merge Candidates</h3>
+                <button type="button" className={styles.closeBtn} onClick={() => setIsMergeModalOpen(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className={styles.modalBody}>
+                <div className={styles.comparisonGrid}>
+                  {(() => {
+                    const isA = mergeDiscardId === activeMergePair.personA.id;
+                    const person = isA ? activeMergePair.personA : activeMergePair.personB;
+                    const birthYear = person.birthDate ? new Date(person.birthDate).getFullYear() : person.estimatedBirthYear;
+                    const deathYear = person.deathDate ? new Date(person.deathDate).getFullYear() : (person.isLiving ? "Present" : "Deceased");
+                    
+                    return (
+                      <div className={`${styles.comparisonCol} ${styles.comparisonColDiscard}`}>
+                        <div className={styles.comparisonColHeader}>
+                          <span className={styles.comparisonTitle}>Candidate to DISCARD & DELETE</span>
+                          <span className={`${styles.comparisonBadge} ${styles.comparisonBadgeDelete}`}>DISCARD</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Full Name</span>
+                          <span className={styles.comparisonVal}>{person.firstName} {person.lastName}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Nickname</span>
+                          <span className={styles.comparisonVal}>{person.nickname || "-"}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Gender</span>
+                          <span className={styles.comparisonVal}>{person.gender}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Lifespan</span>
+                          <span className={styles.comparisonVal}>{birthYear || "?"} – {deathYear || "?"}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Birth Place</span>
+                          <span className={styles.comparisonVal}>{person.birthPlace || "-"}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Biography Notes</span>
+                          <span className={styles.comparisonVal} style={{ whiteSpace: "pre-wrap", maxHeight: "100px", overflowY: "auto" }}>
+                            {person.notes || "-"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                    <button
+                      type="button"
+                      className={styles.comparisonSwapBtn}
+                      onClick={handleSwapMerge}
+                      title="Swap Keep and Discard candidates"
+                    >
+                      <ArrowRightLeft size={20} />
+                    </button>
+                  </div>
+
+                  {(() => {
+                    const isB = mergeKeepId === activeMergePair.personB.id;
+                    const person = isB ? activeMergePair.personB : activeMergePair.personA;
+                    const birthYear = person.birthDate ? new Date(person.birthDate).getFullYear() : person.estimatedBirthYear;
+                    const deathYear = person.deathDate ? new Date(person.deathDate).getFullYear() : (person.isLiving ? "Present" : "Deceased");
+                    
+                    return (
+                      <div className={`${styles.comparisonCol} ${styles.comparisonColKeep} ${styles.comparisonColActive}`}>
+                        <div className={styles.comparisonColHeader}>
+                          <span className={styles.comparisonTitle}>Candidate to KEEP & UPDATE</span>
+                          <span className={`${styles.comparisonBadge} ${styles.comparisonBadgeKeep}`}>KEEP</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Full Name</span>
+                          <span className={styles.comparisonVal}>{person.firstName} {person.lastName}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Nickname</span>
+                          <span className={styles.comparisonVal}>{person.nickname || "-"}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Gender</span>
+                          <span className={styles.comparisonVal}>{person.gender}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Lifespan</span>
+                          <span className={styles.comparisonVal}>{birthYear || "?"} – {deathYear || "?"}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Birth Place</span>
+                          <span className={styles.comparisonVal}>{person.birthPlace || "-"}</span>
+                        </div>
+                        <div className={styles.comparisonRow}>
+                          <span className={styles.comparisonLabel}>Biography Notes</span>
+                          <span className={styles.comparisonVal} style={{ whiteSpace: "pre-wrap", maxHeight: "100px", overflowY: "auto" }}>
+                            {person.notes || "-"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {(() => {
+                    const keep = mergeKeepId === activeMergePair.personB.id ? activeMergePair.personB : activeMergePair.personA;
+                    const discard = mergeKeepId === activeMergePair.personB.id ? activeMergePair.personA : activeMergePair.personB;
+                    
+                    const mergedName = `${keep.firstName} ${keep.lastName}`;
+                    const mergedNick = keep.nickname || discard.nickname;
+                    const mergedBirth = keep.birthDate || keep.estimatedBirthYear ? 
+                      (keep.birthDate ? new Date(keep.birthDate).getFullYear() : keep.estimatedBirthYear) : 
+                      (discard.birthDate ? new Date(discard.birthDate).getFullYear() : discard.estimatedBirthYear);
+                    const mergedDeath = keep.deathDate ? new Date(keep.deathDate).getFullYear() : 
+                      (keep.isLiving ? (discard.deathDate ? new Date(discard.notes).getFullYear() : "Present") : "Deceased");
+                    
+                    return (
+                      <div className={styles.mergePreviewCard}>
+                        <h4 style={{ display: "flex", alignItems: "center", gap: "6px", margin: "0 0 10px 0", color: "#6366f1" }}>
+                          <Sparkles size={16} />
+                          <span>Preview of Merged Individual</span>
+                        </h4>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px", fontSize: "12px" }}>
+                          <div><strong>Name:</strong> {mergedName} {mergedNick && `"${mergedNick}"`}</div>
+                          <div><strong>Lifespan:</strong> {mergedBirth || "?"} – {mergedDeath || "?"}</div>
+                          <div><strong>Birthplace:</strong> {keep.birthPlace || discard.birthPlace || "-"}</div>
+                        </div>
+                        {discard.notes && keep.notes && (
+                          <div style={{ marginTop: "8px", fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                            * Biography notes of both candidates will be appended together.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "20px", padding: "12px", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.2)", borderRadius: "8px" }}>
+                  <AlertCircle size={20} style={{ color: "#ef4444", flexShrink: 0 }} />
+                  <span style={{ fontSize: "12px", color: "#ef4444", lineHeight: "1.4" }}>
+                    <strong>Warning:</strong> Re-routing relationships and merging database records is permanent. If this merge creates parent-child loop cycles, the operation will be rejected.
+                  </span>
+                </div>
+              </div>
+
+              <div className={styles.modalFooter} style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button type="button" className={styles.cancelBtn} onClick={() => setIsMergeModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="button" className={styles.createBtn} style={{ background: "#ef4444" }} onClick={handleConfirmMerge}>
+                  Confirm & Merge
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
   };
 
   const handleSelectPerson = (id: string) => {
@@ -341,27 +971,8 @@ export default function DashboardClient() {
   const [startYear, setStartYear] = useState("");
   const [endYear, setEndYear] = useState("");
 
-  // Apollo operations
-  const { data, loading, error, refetch } = useQuery<any>(GET_ALL_DATA, {
-    skip: !user,
-  });
-
-  const [createPerson] = useMutation(CREATE_PERSON);
-  const [updatePerson, { loading: updateLoading }] = useMutation(UPDATE_PERSON, {
-    onCompleted: () => {
-      setEditSection(null);
-      refetch();
-    },
-    onError: (err) => {
-      setErrorMsg("Failed to update profile: " + err.message);
-    }
-  });
-
   const selectedPerson = data?.people?.find((p: any) => p.id === selectedPersonId);
   const relatives = selectedPerson ? getSelectedPersonRelatives(selectedPerson.id) : null;
-  const [deletePerson] = useMutation(DELETE_PERSON);
-  const [createRelationship] = useMutation(CREATE_RELATIONSHIP);
-  const [deleteRelationship] = useMutation(DELETE_RELATIONSHIP);
 
   // Auth Redirect Guard
   useEffect(() => {
@@ -596,6 +1207,17 @@ export default function DashboardClient() {
             <ArrowRightLeft size={18} style={{ flexShrink: 0 }} />
             {!sidebarCollapsed && <span>Relationships ({data?.relationships?.length || 0})</span>}
           </button>
+          {!isReadOnly && (
+            <button 
+              type="button"
+              className={`${styles.sidebarLink} ${activeTab === "duplicates" ? styles.sidebarLinkActive : ""}`}
+              onClick={() => setActiveTab("duplicates")}
+              title={sidebarCollapsed ? "Merge Tool" : ""}
+            >
+              <GitFork size={18} style={{ flexShrink: 0 }} />
+              {!sidebarCollapsed && <span>Merge Tool</span>}
+            </button>
+          )}
         </nav>
 
         <div className={styles.sidebarFooter}>
@@ -632,7 +1254,58 @@ export default function DashboardClient() {
               <>
                 <div className={styles.panelHeader}>
                   <h2 className={styles.panelTitle}>Family Tree Visualization</h2>
-                  <div style={{ display: "flex", gap: "10px" }}>
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    {/* Fuzzy Search Bar */}
+                    <div className={styles.searchContainer}>
+                      <Search size={16} className={styles.searchIcon} />
+                      <input 
+                        type="text"
+                        className={styles.searchInput}
+                        placeholder="Search by name, nickname, or year..."
+                        value={searchQuery}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        onFocus={() => setIsSearchFocused(true)}
+                        onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+                      />
+                      {isSearchFocused && searchResults.length > 0 && (
+                        <div className={styles.searchResultsDropdown}>
+                          {searchResults.map((person) => {
+                            const birthYr = person.birthDate ? new Date(person.birthDate).getFullYear() : person.estimatedBirthYear;
+                            const deathYr = person.deathDate ? new Date(person.deathDate).getFullYear() : (person.isLiving ? "Present" : "Deceased");
+                            const parents = data?.relationships
+                              ?.filter((r: any) => r.targetPersonId === person.id && r.type === "PARENT_CHILD")
+                              ?.map((r: any) => {
+                                const parent = data?.people?.find((p: any) => p.id === r.sourcePersonId);
+                                return parent ? `${parent.firstName} ${parent.lastName}` : null;
+                              })
+                              ?.filter(Boolean) || [];
+
+                            return (
+                              <button
+                                key={person.id}
+                                type="button"
+                                className={styles.searchResultItem}
+                                onClick={() => {
+                                  handleSelectPerson(person.id);
+                                  setSearchQuery("");
+                                  setSearchResults([]);
+                                }}
+                              >
+                                <span className={styles.searchResultName}>
+                                  {person.firstName} {person.lastName}
+                                  {person.nickname && ` (${person.nickname})`}
+                                </span>
+                                <span className={styles.searchResultDetails}>
+                                  Lifespan: {birthYr || "?"} – {deathYr || "?"}
+                                  {parents.length > 0 && ` | Parents: ${parents.join(" & ")}`}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    
                     <button 
                       className={styles.createBtn} 
                       onClick={handleOpenCreatePerson}
@@ -648,12 +1321,31 @@ export default function DashboardClient() {
                 {data?.people?.length === 0 ? (
                   <div className={styles.emptyState}>No individuals added yet. Click "Add Individual" to begin.</div>
                 ) : (
-                  <FamilyTreeFlow 
-                    people={data.people} 
-                    relationships={data.relationships} 
-                    onSelectPerson={handleSelectPerson}
-                    focusedNodeId={focusedNodeId}
-                  />
+                  <div style={{ display: "flex", width: "100%", height: "calc(100vh - 120px)", position: "relative" }}>
+                    <FamilyTreeFlow 
+                      people={displayedPeople} 
+                      relationships={displayedRelationships} 
+                      onSelectPerson={handleSelectPerson}
+                      focusedNodeId={focusedNodeId}
+                    />
+
+                    {/* Toggle Filters Button */}
+                    <button 
+                      type="button"
+                      className={styles.resetLayoutBtn} 
+                      style={{ position: "absolute", top: "16px", left: "16px", zIndex: 10, display: "flex", alignItems: "center", gap: "6px", background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(8px)", border: "1px solid rgba(255, 255, 255, 0.1)" }}
+                      onClick={() => setShowFilters(!showFilters)}
+                    >
+                      <SlidersHorizontal size={14} />
+                      <span>{showFilters ? "Hide Filters" : "Show Filters"}</span>
+                    </button>
+                    
+                    {showFilters && (
+                      <div style={{ position: "absolute", top: "54px", left: "16px", zIndex: 10 }}>
+                        <FiltersCard />
+                      </div>
+                    )}
+                  </div>
                 )}
               </>
             )}
@@ -814,6 +1506,13 @@ export default function DashboardClient() {
                   )}
                 </div>
               </>
+            )}
+
+            {activeTab === "duplicates" && (
+              <DuplicateMergeTab 
+                isReadOnly={isReadOnly}
+                refetchMainData={refetch}
+              />
             )}
           </div>
         )}

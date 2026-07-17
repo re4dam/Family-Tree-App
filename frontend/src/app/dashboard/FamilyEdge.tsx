@@ -8,6 +8,7 @@ interface FamilyEdgeData {
   partnerType?: string | null;
   startYear?: number | null;
   endYear?: number | null;
+  isFaded?: boolean;
 }
 
 export default function FamilyEdge({
@@ -98,6 +99,8 @@ export default function FamilyEdge({
     }
   }
 
+  const isFaded = edgeData?.isFaded;
+
   // Draw edge
   if (isDoubleLine) {
     // To draw a double line, we stack a thick outer line and a slightly thinner background-colored inner line.
@@ -110,7 +113,7 @@ export default function FamilyEdge({
           fill="none"
           stroke={strokeColor}
           strokeWidth={5}
-          style={{ ...style }}
+          style={{ ...style, opacity: isFaded ? 0.15 : 1 }}
           className="react-flow__edge-path"
         />
         {/* Inner background mask (creates the double line gap) */}
@@ -120,7 +123,7 @@ export default function FamilyEdge({
           fill="none"
           stroke="var(--background-color, #0b0f19)"
           strokeWidth={2.2}
-          style={{ ...style }}
+          style={{ ...style, opacity: isFaded ? 0.15 : 1 }}
         />
         {labelText && (
           <EdgeLabelRenderer>
@@ -129,6 +132,7 @@ export default function FamilyEdge({
                 position: 'absolute',
                 transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
                 pointerEvents: 'all',
+                opacity: isFaded ? 0.15 : 1,
               }}
               className={`${styles.edgeLabelBadge} ${labelBadgeClass}`}
             >
@@ -150,6 +154,7 @@ export default function FamilyEdge({
           stroke: strokeColor,
           strokeWidth: 2.5,
           strokeDasharray,
+          opacity: isFaded ? 0.15 : 1,
         }}
         markerEnd={markerEnd}
       />
@@ -160,6 +165,7 @@ export default function FamilyEdge({
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
+              opacity: isFaded ? 0.15 : 1,
             }}
             className={`${styles.edgeLabelBadge} ${labelBadgeClass}`}
           >

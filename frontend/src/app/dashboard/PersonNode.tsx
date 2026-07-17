@@ -56,7 +56,7 @@ export default memo(function PersonNode({ data }: { data: PersonNodeData }) {
   const genderStyles = getGenderStyles();
 
   return (
-    <div className={`${styles.nodeCard} ${genderStyles.cardClass}`}>
+    <div className={`${styles.nodeCard} ${genderStyles.cardClass} ${(person as any).isFaded ? styles.nodeFaded : ''}`}>
       {/* Target handle for parent-to-child connections (Top) */}
       <Handle
         type="target"

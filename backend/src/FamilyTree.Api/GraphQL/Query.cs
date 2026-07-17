@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FamilyTree.Core.Entities;
+using FamilyTree.Core.Services;
 using FamilyTree.Infrastructure.Data;
 using HotChocolate.Authorization;
 using HotChocolate.Data;
@@ -33,5 +35,18 @@ public class Query
     [UseFiltering]
     [UseSorting]
     public IQueryable<Relationship> GetRelationships(FamilyTreeDbContext db) => db.Relationships;
+
+    [Authorize(Roles = new[] { "Admin", "SuperAdmin" })]
+    public async Task<List<DuplicatePair>> GetPotentialDuplicatesAsync(FamilyTreeDbContext db)
+    {
+        var people = await db.People
+            .Where(p => !p.IsUnknown)
+            .Include(p => p.RelationshipsAsSource)
+            .Include(p => p.RelationshipsAsTarget)
+            .ToListAsync();
+
+        var service = new DuplicateDetectionService();
+        return service.GetPotentialDuplicates(people);
+    }
 }
 

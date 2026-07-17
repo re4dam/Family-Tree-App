@@ -516,6 +516,154 @@ public class Mutation
         );
     }
 
+    [Authorize(Roles = new[] { "Admin", "SuperAdmin" })]
+    public async Task<Person> MergePeopleAsync(
+        Guid sourceId, 
+        Guid targetId, 
+        [Service] FamilyTreeDbContext db)
+    {
+        if (sourceId == targetId)
+        {
+            throw new ArgumentException("Cannot merge a person into themselves.");
+        }
+
+        var source = await db.People
+            .Include(p => p.RelationshipsAsSource)
+            .Include(p => p.RelationshipsAsTarget)
+            .FirstOrDefaultAsync(p => p.Id == sourceId);
+
+        var target = await db.People
+            .Include(p => p.RelationshipsAsSource)
+            .Include(p => p.RelationshipsAsTarget)
+            .FirstOrDefaultAsync(p => p.Id == targetId);
+
+        if (source == null || target == null)
+        {
+            throw new ArgumentException("Source or Target person not found.");
+        }
+
+        // Use transaction to ensure rollback on cycle validation failure
+        using var transaction = await db.Database.BeginTransactionAsync();
+
+        try
+        {
+            // 1. Merge properties
+            if (string.IsNullOrEmpty(target.Nickname)) target.Nickname = source.Nickname;
+            if (!target.BirthDate.HasValue) target.BirthDate = source.BirthDate;
+            if (!target.EstimatedBirthYear.HasValue) target.EstimatedBirthYear = source.EstimatedBirthYear;
+            if (!target.DeathDate.HasValue) target.DeathDate = source.DeathDate;
+            if (string.IsNullOrEmpty(target.BirthPlace)) target.BirthPlace = source.BirthPlace;
+            if (string.IsNullOrEmpty(target.PhotoUrl)) target.PhotoUrl = source.PhotoUrl;
+            
+            if (!string.IsNullOrEmpty(source.Notes))
+            {
+                if (string.IsNullOrEmpty(target.Notes))
+                {
+                    target.Notes = source.Notes;
+                }
+                else if (!target.Notes.Contains(source.Notes))
+                {
+                    target.Notes += $"\n\n--- Merged Biography Notes ---\n{source.Notes}";
+                }
+            }
+
+            // 2. Process relationships
+            var allRelationships = await db.Relationships.ToListAsync();
+
+            // Source relationships: SourcePersonId == sourceId
+            var sourceRels = allRelationships.Where(r => r.SourcePersonId == sourceId).ToList();
+            foreach (var rel in sourceRels)
+            {
+                // Check if target already has an equivalent relationship with rel.TargetPersonId
+                var exists = allRelationships.Any(r => 
+                    r.SourcePersonId == targetId && 
+                    r.TargetPersonId == rel.TargetPersonId && 
+                    r.Type == rel.Type && 
+                    r.ParentChildType == rel.ParentChildType &&
+                    r.PartnerType == rel.PartnerType);
+
+                if (exists || rel.TargetPersonId == targetId)
+                {
+                    db.Relationships.Remove(rel);
+                }
+                else
+                {
+                    rel.SourcePersonId = targetId;
+                }
+            }
+
+            // Target relationships: TargetPersonId == sourceId
+            var targetRels = allRelationships.Where(r => r.TargetPersonId == sourceId).ToList();
+            foreach (var rel in targetRels)
+            {
+                // Check if target already has an equivalent relationship with rel.SourcePersonId
+                var exists = allRelationships.Any(r => 
+                    r.SourcePersonId == rel.SourcePersonId && 
+                    r.TargetPersonId == targetId && 
+                    r.Type == rel.Type && 
+                    r.ParentChildType == rel.ParentChildType &&
+                    r.PartnerType == rel.PartnerType);
+
+                if (exists || rel.SourcePersonId == targetId)
+                {
+                    db.Relationships.Remove(rel);
+                }
+                else
+                {
+                    rel.TargetPersonId = targetId;
+                }
+            }
+
+            // 3. Re-associate users
+            var users = await db.Users.Where(u => u.PersonId == sourceId).ToListAsync();
+            foreach (var user in users)
+            {
+                user.PersonId = targetId;
+            }
+
+            // Save modifications temporarily to run validation
+            await db.SaveChangesAsync();
+
+            // 4. Validate cycles
+            var validationService = new ValidationService();
+            
+            var targetRelationships = await db.Relationships
+                .Where(r => r.Type == RelationshipType.ParentChild && (r.SourcePersonId == targetId || r.TargetPersonId == targetId))
+                .ToListAsync();
+
+            Func<Guid, Task<List<Guid>>> getChildrenIds = async (currentId) => await db.Relationships
+                .Where(r => r.SourcePersonId == currentId && r.Type == RelationshipType.ParentChild)
+                .Select(r => r.TargetPersonId)
+                .ToListAsync();
+
+            foreach (var r in targetRelationships)
+            {
+                var hasCycle = await validationService.WouldCreateCycleAsync(
+                    r.SourcePersonId,
+                    r.TargetPersonId,
+                    getChildrenIds
+                );
+
+                if (hasCycle)
+                {
+                    throw new InvalidOperationException("Merging these individuals would create a circular parent-child loop.");
+                }
+            }
+
+            // Delete Candidate A (source)
+            db.People.Remove(source);
+            await db.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+            return target;
+        }
+        catch (Exception)
+        {
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
+
     private (string Token, DateTime Expiration) GenerateJwtToken(FamilyTreeUser user, string role, IConfiguration configuration)
     {
         var secret = configuration["Jwt:Secret"] ?? "SuperSecretSecurityKeyToVerifyTokens_Minimum256BitsLong!";

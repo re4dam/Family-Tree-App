@@ -46,7 +46,7 @@ Reach for GraphQL (whichever backend you pick) only if you expect the frontend's
 - [x] Support multiple partners per person over time (marriage history), not just one spouse field
 - [x] Support unknown parent as an explicit **placeholder `Person`** (e.g. `isUnknown: true`, no name/dates) rather than a null reference — keeps the edge (and future "resolve this person later" flow) intact instead of just leaving a gap
 - [x] Validation: prevent cycles (a person cannot be their own ancestor)
-- [ ] **Merge tool**: detect/flag likely duplicate people (same name + overlapping dates or shared relatives) and support merging two `Person` records into one, re-pointing all relationship edges from the discarded record to the kept one
+- [x] **Merge tool**: detect/flag likely duplicate people (same name + overlapping dates or shared relatives) and support merging two `Person` records into one, re-pointing all relationship edges from the discarded record to the kept one
 
 ## 2. Graph Visualization
 
@@ -97,12 +97,12 @@ Reach for GraphQL (whichever backend you pick) only if you expect the frontend's
   - Share-link viewers see living people the same as an authenticated Viewer
     — no extra redaction for the account-free path
 
-## 5. Search
+## 5. Search [COMPLETED]
 
-- [ ] Search by name (fuzzy/partial match)
-- [ ] Search by other attributes: birth year range, place, relationship (e.g. "children of X")
-- [ ] On result select: center graph on that node + open detail panel
-- [ ] Handle duplicate/similar names in results (show birth year or parents as disambiguator)
+- [x] Search by name (fuzzy/partial match)
+- [x] Search by other attributes: birth year range, place, relationship (e.g. "children of X")
+- [x] On result select: center graph on that node + open detail panel
+- [x] Handle duplicate/similar names in results (show birth year or parents as disambiguator)
 
 ---
 
@@ -142,9 +142,9 @@ time implementation starts:
 3. [x] CRUD for Person + relationships (no visualization yet — plain forms/list)
 4. [x] Graph visualization (read-only, network view)
 5. [x] Node click → detail panel
-6. Search
+6. [x] Search
 7. [x] Editing from within the graph/panel
-8. Merge tool for duplicate people
+8. [x] Merge tool for duplicate people
 9. Pedigree/descendant view modes, branch collapse, large-tree performance
 10. Shareable expiring access links (view-only, account-free)
 11. Import/export (if it becomes a real need)
