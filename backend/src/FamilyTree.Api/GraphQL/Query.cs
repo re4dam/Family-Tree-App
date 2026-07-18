@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using FamilyTree.Api.GraphQL.Types;
 using FamilyTree.Core.Entities;
 using FamilyTree.Core.Services;
 using FamilyTree.Infrastructure.Data;
@@ -47,6 +48,56 @@ public class Query
 
         var service = new DuplicateDetectionService();
         return service.GetPotentialDuplicates(people);
+    }
+
+    [Authorize]
+    public async Task<SubtreePayload> GetSubtreeAsync(
+        Guid focalPersonId,
+        int depth,
+        FamilyTreeDbContext db)
+    {
+        if (depth < 0) depth = 0;
+        if (depth > 5) depth = 5;
+
+        var loadedPersonIds = new HashSet<Guid> { focalPersonId };
+        var activeFrontier = new HashSet<Guid> { focalPersonId };
+
+        for (int d = 0; d < depth; d++)
+        {
+            if (activeFrontier.Count == 0) break;
+
+            var relationships = await db.Relationships
+                .Where(r => activeFrontier.Contains(r.SourcePersonId) || activeFrontier.Contains(r.TargetPersonId))
+                .Select(r => new { r.SourcePersonId, r.TargetPersonId })
+                .ToListAsync();
+
+            var nextFrontier = new HashSet<Guid>();
+            foreach (var r in relationships)
+            {
+                if (!loadedPersonIds.Contains(r.SourcePersonId))
+                {
+                    nextFrontier.Add(r.SourcePersonId);
+                    loadedPersonIds.Add(r.SourcePersonId);
+                }
+                if (!loadedPersonIds.Contains(r.TargetPersonId))
+                {
+                    nextFrontier.Add(r.TargetPersonId);
+                    loadedPersonIds.Add(r.TargetPersonId);
+                }
+            }
+
+            activeFrontier = nextFrontier;
+        }
+
+        var people = await db.People
+            .Where(p => loadedPersonIds.Contains(p.Id))
+            .ToListAsync();
+
+        var relList = await db.Relationships
+            .Where(r => loadedPersonIds.Contains(r.SourcePersonId) && loadedPersonIds.Contains(r.TargetPersonId))
+            .ToListAsync();
+
+        return new SubtreePayload(people, relList);
     }
 }
 

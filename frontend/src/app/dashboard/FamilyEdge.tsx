@@ -22,6 +22,7 @@ export default function FamilyEdge({
   style = {},
   markerEnd,
   data,
+  target,
 }: EdgeProps) {
   const edgeData = data as FamilyEdgeData | undefined;
   const isParentChild = edgeData?.type === 'PARENT_CHILD';
@@ -79,7 +80,6 @@ export default function FamilyEdge({
       labelText = pt.toLowerCase().replace('_', ' ') + years;
       if (pt === 'MARRIED') {
         strokeColor = '#fbbf24'; // amber
-        labelBadgeClass = styles.edgeLabelMarried;
       } else if (pt === 'DIVORCED') {
         strokeColor = '#ef4444'; // red
         labelBadgeClass = styles.edgeLabelDivorced;
@@ -100,6 +100,8 @@ export default function FamilyEdge({
   }
 
   const isFaded = edgeData?.isFaded;
+  const showCollapseButton = isParentChild && edgeData?.onCollapse && edgeData?.targetPersonId && !target.startsWith('collapsed-');
+  const buttonY = labelText ? labelY + 18 : labelY;
 
   // Draw edge
   if (isDoubleLine) {
@@ -171,6 +173,27 @@ export default function FamilyEdge({
           >
             {labelText}
           </div>
+        </EdgeLabelRenderer>
+      )}
+      {showCollapseButton && (
+        <EdgeLabelRenderer>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              edgeData?.onCollapse?.(edgeData.targetPersonId!);
+            }}
+            className={styles.edgeCollapseBtn}
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px,${buttonY}px)`,
+              pointerEvents: 'all',
+              zIndex: 5,
+            }}
+            title="Collapse branch"
+          >
+            -
+          </button>
         </EdgeLabelRenderer>
       )}
     </>

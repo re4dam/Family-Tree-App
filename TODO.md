@@ -54,10 +54,10 @@ Reach for GraphQL (whichever backend you pick) only if you expect the frontend's
 - [x] Distinguish edge styles: parent-child vs partner vs divorced vs adoptive
 - [x] Layout algorithm for generational alignment (siblings same row, ancestors above, descendants below)
 - [x] Zoom / pan
-- [ ] Collapse/expand a branch (hide descendants or ancestors of a node)
-- [ ] Handle large trees — clustering, virtualization, or lazy-loading off-screen nodes
+- [x] Collapse/expand a branch (hide descendants or ancestors of a node)
+- [x] Handle large trees — clustering, virtualization, or lazy-loading off-screen nodes
 - [ ] Highlight direct lineage path between two selected people
-- [ ] **Multiple view modes** over the same underlying data (user-toggleable):
+- [x] **Multiple view modes** over the same underlying data (user-toggleable):
   - Network graph (default, full web of relationships)
   - Pedigree chart (strict ancestors-only, fan or tree layout from one person up)
   - Descendant chart (strict descendants-only from one person down)

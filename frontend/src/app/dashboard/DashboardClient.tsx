@@ -98,6 +98,12 @@ const DELETE_RELATIONSHIP = gql`
   }
 `;
 
+const SEED_SAMPLE_DATA = gql`
+  mutation SeedSampleData {
+    seedSampleData
+  }
+`;
+
 const GET_DUPLICATES = gql`
   query GetPotentialDuplicates {
     potentialDuplicates {
@@ -198,6 +204,52 @@ export default function DashboardClient() {
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<"overview" | "family" | "notes">("overview");
+
+  // View mode & collapse states
+  const [viewMode, setViewMode] = useState<"network" | "pedigree" | "descendant">("network");
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(new Set());
+
+  // Clear collapse state when switching view modes or selecting a different focal person
+  useEffect(() => {
+    setCollapsedNodeIds(new Set());
+  }, [viewMode, selectedPersonId]);
+
+  const handleCollapseNode = (nodeId: string) => {
+    setCollapsedNodeIds((prev) => {
+      const next = new Set(prev);
+      next.add(nodeId);
+      return next;
+    });
+  };
+
+  const handleExpandNode = (nodeId: string) => {
+    setCollapsedNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(nodeId);
+      return next;
+    });
+  };
+
+  // Seeding sample data
+  const [seedSampleData, { loading: seedLoading }] = useMutation(SEED_SAMPLE_DATA, {
+    onCompleted: () => {
+      refetch();
+      setErrorMsg(null);
+    },
+    onError: (err) => {
+      setErrorMsg("Failed to seed sample data: " + err.message);
+    }
+  });
+
+  const handleSeedSampleData = async () => {
+    if (window.confirm("This will clear the current database and seed the default Pendragon family tree. Continue?")) {
+      try {
+        await seedSampleData();
+      } catch (err) {
+        // Error handled in onError
+      }
+    }
+  };
 
   // Inline Edit states
   const [editSection, setEditSection] = useState<"profile" | "lifespan" | "notes" | null>(null);
@@ -331,37 +383,199 @@ export default function DashboardClient() {
     return true;
   };
 
-  const displayedPeople = React.useMemo(() => {
-    if (!data?.people) return [];
-    if (!isFilterActive) return data.people;
+  // 1. First, apply View Mode filter (Network vs Pedigree vs Descendant)
+  const viewFilteredPeopleAndRels = React.useMemo(() => {
+    if (!data?.people) return { people: [], relationships: [] };
 
-    if (filterMode === "hide") {
-      return data.people.filter(matchesFilter);
-    } else {
-      return data.people.map((p: any) => ({
-        ...p,
-        isFaded: !matchesFilter(p)
-      }));
+    let basePeople = [...data.people];
+    let baseRels = [...data.relationships];
+
+    if (viewMode !== "network") {
+      const focalId = selectedPersonId || basePeople.find((p: any) => !p.isUnknown)?.id;
+      if (focalId) {
+        let keepIds = new Set<string>();
+        if (viewMode === "pedigree") {
+          // Traverse upward
+          keepIds.add(focalId);
+          const queue = [focalId];
+          while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            baseRels.forEach((r: any) => {
+              if (r.type === "PARENT_CHILD" && r.targetPersonId === currentId) {
+                if (!keepIds.has(r.sourcePersonId)) {
+                  keepIds.add(r.sourcePersonId);
+                  queue.push(r.sourcePersonId);
+                }
+              }
+            });
+          }
+        } else if (viewMode === "descendant") {
+          // Traverse downward
+          keepIds.add(focalId);
+          const queue = [focalId];
+          while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            baseRels.forEach((r: any) => {
+              if (r.type === "PARENT_CHILD" && r.sourcePersonId === currentId) {
+                if (!keepIds.has(r.targetPersonId)) {
+                  keepIds.add(r.targetPersonId);
+                  queue.push(r.targetPersonId);
+                }
+              }
+            });
+          }
+          // Also include partners of descendants
+          const withPartners = new Set(keepIds);
+          baseRels.forEach((r: any) => {
+            if (r.type === "PARTNER") {
+              if (keepIds.has(r.sourcePersonId) && !withPartners.has(r.targetPersonId)) {
+                withPartners.add(r.targetPersonId);
+              } else if (keepIds.has(r.targetPersonId) && !withPartners.has(r.sourcePersonId)) {
+                withPartners.add(r.sourcePersonId);
+              }
+            }
+          });
+          keepIds = withPartners;
+        }
+
+        basePeople = basePeople.filter((p: any) => keepIds.has(p.id));
+        baseRels = baseRels.filter((r: any) => keepIds.has(r.sourcePersonId) && keepIds.has(r.targetPersonId));
+      }
     }
-  }, [data, isFilterActive, genderFilter, centuryFilter, locationFilter, filterMode, lineagePathNodeIds]);
 
-  const displayedRelationships = React.useMemo(() => {
-    if (!data?.relationships) return [];
-    if (!isFilterActive) return data.relationships;
+    return { people: basePeople, relationships: baseRels };
+  }, [data, viewMode, selectedPersonId]);
+
+  // Compute collapsed subtrees to hide
+  const collapsedHiddenIds = React.useMemo(() => {
+    const { people: basePeople, relationships: baseRels } = viewFilteredPeopleAndRels;
+    if (collapsedNodeIds.size === 0) return new Set<string>();
+
+    const hiddenIds = new Set<string>();
+    const queue = Array.from(collapsedNodeIds);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      baseRels.forEach((r: any) => {
+        if (r.type === "PARENT_CHILD" && r.sourcePersonId === currentId) {
+          if (!hiddenIds.has(r.targetPersonId)) {
+            hiddenIds.add(r.targetPersonId);
+            queue.push(r.targetPersonId);
+          }
+        }
+      });
+    }
+
+    // Hide spouses/partners of hidden descendants if they have no visible connections
+    let addedSpouse = true;
+    while (addedSpouse) {
+      addedSpouse = false;
+      basePeople.forEach((p: any) => {
+        if (hiddenIds.has(p.id)) return;
+
+        const isPartnerOfHidden = baseRels.some((r: any) => 
+          r.type === "PARTNER" && 
+          ((r.sourcePersonId === p.id && hiddenIds.has(r.targetPersonId)) || 
+           (r.targetPersonId === p.id && hiddenIds.has(r.sourcePersonId)))
+        );
+
+        if (isPartnerOfHidden) {
+          const hasVisibleParentChild = baseRels.some((r: any) => 
+            r.type === "PARENT_CHILD" && 
+            ((r.sourcePersonId === p.id && !hiddenIds.has(r.targetPersonId)) || 
+             (r.targetPersonId === p.id && !hiddenIds.has(r.sourcePersonId)))
+          );
+
+          if (!hasVisibleParentChild) {
+            hiddenIds.add(p.id);
+            addedSpouse = true;
+          }
+        }
+      });
+    }
+
+    return hiddenIds;
+  }, [viewFilteredPeopleAndRels, collapsedNodeIds]);
+
+  const displayedElements = React.useMemo(() => {
+    const { people: basePeople, relationships: baseRels } = viewFilteredPeopleAndRels;
+    
+    // Filter base people and rels to exclude hidden descendants and collapsed roots
+    const activeHidden = new Set([...Array.from(collapsedHiddenIds), ...Array.from(collapsedNodeIds)]);
+
+    // Initial visible lists
+    const visiblePeople = basePeople.filter((p: any) => !activeHidden.has(p.id));
+    const visibleRels = baseRels.filter((r: any) => !activeHidden.has(r.sourcePersonId) && !activeHidden.has(r.targetPersonId));
+
+    // Placeholders to add
+    const placeholders: any[] = [];
+    const placeholderRels: any[] = [];
+    const addedPlaceholders = new Set<string>();
+
+    // Scan for edges from visible parents to collapsed children
+    baseRels.forEach((r: any) => {
+      if (r.type === "PARENT_CHILD" && collapsedNodeIds.has(r.targetPersonId) && !activeHidden.has(r.sourcePersonId)) {
+        const collapsedChildId = r.targetPersonId;
+        const collapsedChild = basePeople.find((p: any) => p.id === collapsedChildId);
+        if (collapsedChild) {
+          const placeholderId = `collapsed-${collapsedChildId}`;
+          
+          if (!addedPlaceholders.has(placeholderId)) {
+            addedPlaceholders.add(placeholderId);
+            placeholders.push({
+              id: placeholderId,
+              firstName: collapsedChild.firstName,
+              lastName: collapsedChild.lastName,
+              isCollapsedPlaceholder: true,
+              onExpand: handleExpandNode,
+            });
+          }
+
+          placeholderRels.push({
+            id: `edge-collapsed-${r.id}`,
+            type: "PARENT_CHILD",
+            sourcePersonId: r.sourcePersonId,
+            targetPersonId: placeholderId,
+            parentChildType: r.parentChildType,
+            onCollapse: null,
+          });
+        }
+      }
+    });
+
+    const finalPeople = [...visiblePeople, ...placeholders];
+    const finalRels = [...visibleRels, ...placeholderRels];
+
+    if (!isFilterActive) {
+      return { people: finalPeople, relationships: finalRels };
+    }
 
     if (filterMode === "hide") {
-      const keptIds = new Set(displayedPeople.map((p: any) => p.id));
-      return data.relationships.filter(
-        (r: any) => keptIds.has(r.sourcePersonId) && keptIds.has(r.targetPersonId)
+      const filteredPeople = finalPeople.filter(p => p.isCollapsedPlaceholder || matchesFilter(p));
+      const keptIds = new Set(filteredPeople.map(p => p.id));
+      const filteredRels = finalRels.filter(
+        r => keptIds.has(r.sourcePersonId) && keptIds.has(r.targetPersonId)
       );
+      return { people: filteredPeople, relationships: filteredRels };
     } else {
-      return data.relationships.map((r: any) => {
+      const filteredPeople = finalPeople.map(p => {
+        if (p.isCollapsedPlaceholder) return p;
+        return {
+          ...p,
+          isFaded: !matchesFilter(p)
+        };
+      });
+      const filteredRels = finalRels.map(r => {
+        if (r.targetPersonId.startsWith("collapsed-")) return r;
+        
         let isFaded = false;
         if (traceSourceId && traceTargetId) {
           isFaded = !lineagePathEdgeIds.has(r.id);
         } else {
-          const sourceFaded = !matchesFilter(data.people.find((p: any) => p.id === r.sourcePersonId));
-          const targetFaded = !matchesFilter(data.people.find((p: any) => p.id === r.targetPersonId));
+          const sourcePerson = finalPeople.find(p => p.id === r.sourcePersonId);
+          const targetPerson = finalPeople.find(p => p.id === r.targetPersonId);
+          const sourceFaded = sourcePerson && !sourcePerson.isCollapsedPlaceholder && !matchesFilter(sourcePerson);
+          const targetFaded = targetPerson && !targetPerson.isCollapsedPlaceholder && !matchesFilter(targetPerson);
           isFaded = sourceFaded || targetFaded;
         }
         return {
@@ -369,8 +583,12 @@ export default function DashboardClient() {
           isFaded
         };
       });
+      return { people: filteredPeople, relationships: filteredRels };
     }
-  }, [data, isFilterActive, displayedPeople, filterMode, traceSourceId, traceTargetId, lineagePathEdgeIds]);
+  }, [viewFilteredPeopleAndRels, collapsedHiddenIds, collapsedNodeIds, isFilterActive, filterMode, genderFilter, centuryFilter, locationFilter, lineagePathNodeIds, traceSourceId, traceTargetId, lineagePathEdgeIds]);
+
+  const displayedPeople = React.useMemo(() => displayedElements.people, [displayedElements]);
+  const displayedRelationships = React.useMemo(() => displayedElements.relationships, [displayedElements]);
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
@@ -1306,6 +1524,51 @@ export default function DashboardClient() {
                       )}
                     </div>
                     
+                    {/* View Mode Selectors */}
+                    <div className={styles.viewModeContainer}>
+                      <button
+                        type="button"
+                        className={`${styles.viewModeBtn} ${viewMode === "network" ? styles.viewModeActive : ""}`}
+                        onClick={() => setViewMode("network")}
+                        title="Show full relationship network"
+                      >
+                        <Network size={15} />
+                        <span className={styles.viewModeBtnText}>Network</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.viewModeBtn} ${viewMode === "pedigree" ? styles.viewModeActive : ""}`}
+                        onClick={() => setViewMode("pedigree")}
+                        title="Show ancestors of selected individual"
+                      >
+                        <GitBranch size={15} />
+                        <span className={styles.viewModeBtnText}>Pedigree</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.viewModeBtn} ${viewMode === "descendant" ? styles.viewModeActive : ""}`}
+                        onClick={() => setViewMode("descendant")}
+                        title="Show descendants of selected individual"
+                      >
+                        <GitFork size={15} />
+                        <span className={styles.viewModeBtnText}>Descendants</span>
+                      </button>
+                    </div>
+
+                    {/* Seed button for SuperAdmin */}
+                    {user?.role === "SuperAdmin" && (
+                      <button
+                        type="button"
+                        className={styles.seedBtn}
+                        onClick={handleSeedSampleData}
+                        disabled={seedLoading}
+                        title="Seed default Pendragon family tree"
+                      >
+                        <Sparkles size={15} />
+                        <span>Seed Tree</span>
+                      </button>
+                    )}
+
                     <button 
                       className={styles.createBtn} 
                       onClick={handleOpenCreatePerson}
@@ -1322,18 +1585,24 @@ export default function DashboardClient() {
                   <div className={styles.emptyState}>No individuals added yet. Click "Add Individual" to begin.</div>
                 ) : (
                   <div style={{ display: "flex", width: "100%", height: "calc(100vh - 120px)", position: "relative" }}>
+                    {viewMode !== "network" && !selectedPersonId && (
+                      <div className={styles.viewModeWarningBar}>
+                        <Info size={14} />
+                        <span>Viewing <strong>{viewMode === "pedigree" ? "Pedigree" : "Descendants"} chart</strong>. Please select an individual to focus the view.</span>
+                      </div>
+                    )}
                     <FamilyTreeFlow 
                       people={displayedPeople} 
                       relationships={displayedRelationships} 
                       onSelectPerson={handleSelectPerson}
                       focusedNodeId={focusedNodeId}
+                      onCollapseNode={handleCollapseNode}
                     />
 
                     {/* Toggle Filters Button */}
                     <button 
                       type="button"
-                      className={styles.resetLayoutBtn} 
-                      style={{ position: "absolute", top: "16px", left: "16px", zIndex: 10, display: "flex", alignItems: "center", gap: "6px", background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(8px)", border: "1px solid rgba(255, 255, 255, 0.1)" }}
+                      className={styles.toggleFiltersBtn} 
                       onClick={() => setShowFilters(!showFilters)}
                     >
                       <SlidersHorizontal size={14} />

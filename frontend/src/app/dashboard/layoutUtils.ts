@@ -35,7 +35,8 @@ const NODE_HEIGHT = 90;
 
 export function getLayoutedElements(
   people: GraphQLPerson[],
-  relationships: GraphQLRelationship[]
+  relationships: GraphQLRelationship[],
+  onCollapseNode?: (id: string) => void
 ) {
   const g = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   g.setGraph({
@@ -46,7 +47,10 @@ export function getLayoutedElements(
 
   // 1. Add all nodes to Dagre
   people.forEach((person) => {
-    g.setNode(person.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    const isPlaceholder = person.id.startsWith('collapsed-') || (person as any).isCollapsedPlaceholder;
+    const w = isPlaceholder ? 180 : NODE_WIDTH;
+    const h = isPlaceholder ? 38 : NODE_HEIGHT;
+    g.setNode(person.id, { width: w, height: h });
   });
 
   // 2. Add edges to Dagre
@@ -64,14 +68,22 @@ export function getLayoutedElements(
   // 4. Create positioned React Flow nodes
   const nodes: Node[] = people.map((person) => {
     const dagreNode = g.node(person.id);
+    const isPlaceholder = person.id.startsWith('collapsed-') || (person as any).isCollapsedPlaceholder;
+    const w = isPlaceholder ? 180 : NODE_WIDTH;
+    const h = isPlaceholder ? 38 : NODE_HEIGHT;
+
     return {
       id: person.id,
-      type: 'personNode',
+      type: isPlaceholder ? 'collapsedNode' : 'personNode',
       position: {
-        x: dagreNode.x - NODE_WIDTH / 2,
-        y: dagreNode.y - NODE_HEIGHT / 2,
+        x: dagreNode.x - w / 2,
+        y: dagreNode.y - h / 2,
       },
-      data: { person },
+      data: isPlaceholder ? {
+        label: `Expand ${person.firstName} ${person.lastName}`,
+        targetId: person.id.replace('collapsed-', ''),
+        onExpand: (person as any).onExpand,
+      } : { person },
     };
   });
 
@@ -105,6 +117,8 @@ export function getLayoutedElements(
         startYear: rel.startYear,
         endYear: rel.endYear,
         isFaded: (rel as any).isFaded,
+        onCollapse: onCollapseNode,
+        targetPersonId: rel.targetPersonId,
       },
     };
   });

@@ -16,6 +16,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import PersonNode from './PersonNode';
+import CollapsedNode from './CollapsedNode';
 import FamilyEdge from './FamilyEdge';
 import { getLayoutedElements, GraphQLPerson, GraphQLRelationship } from './layoutUtils';
 import styles from './dashboard.module.css';
@@ -23,6 +24,7 @@ import { RefreshCw } from 'lucide-react';
 
 const NODE_TYPES = {
   personNode: PersonNode,
+  collapsedNode: CollapsedNode,
 };
 
 const EDGE_TYPES = {
@@ -34,9 +36,10 @@ interface FamilyTreeFlowProps {
   relationships: GraphQLRelationship[];
   onSelectPerson: (id: string) => void;
   focusedNodeId: string | null;
+  onCollapseNode?: (id: string) => void;
 }
 
-function FlowCanvas({ people, relationships, onSelectPerson, focusedNodeId }: FamilyTreeFlowProps) {
+function FlowCanvas({ people, relationships, onSelectPerson, focusedNodeId, onCollapseNode }: FamilyTreeFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
@@ -45,7 +48,8 @@ function FlowCanvas({ people, relationships, onSelectPerson, focusedNodeId }: Fa
     if (people && relationships) {
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
         people,
-        relationships
+        relationships,
+        onCollapseNode
       );
       setNodes(layoutedNodes);
       setEdges(layoutedEdges);
@@ -55,7 +59,7 @@ function FlowCanvas({ people, relationships, onSelectPerson, focusedNodeId }: Fa
   // Calculate layout whenever data changes
   useEffect(() => {
     calculateLayout();
-  }, [people, relationships]);
+  }, [people, relationships, onCollapseNode]);
 
   // Center and focus on a node when focusedNodeId changes
   useEffect(() => {
@@ -82,13 +86,18 @@ function FlowCanvas({ people, relationships, onSelectPerson, focusedNodeId }: Fa
           onEdgesChange={onEdgesChange}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
-          onNodeClick={(_, node) => onSelectPerson(node.id)}
+          onNodeClick={(_, node) => {
+            if (node.type === 'personNode') {
+              onSelectPerson(node.id);
+            }
+          }}
           fitView
           minZoom={0.1}
           maxZoom={1.5}
           nodesConnectable={false}
           nodesDraggable={true}
           elementsSelectable={true}
+          onlyRenderVisibleElements={true}
         >
           <Background color="rgba(255, 255, 255, 0.05)" gap={20} size={1} />
           <Controls />
