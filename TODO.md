@@ -86,15 +86,15 @@ Reach for GraphQL (whichever backend you pick) only if you expect the frontend's
   per-branch permissions (e.g. only edit your own immediate family) — start
   with whole-tree roles and revisit only if it becomes a real problem
 - [ ] Invite flow — how does a Super Admin add another family member's account?
-- [ ] **Shareable time-limited access links** — a way to let someone view the
+- [x] **Shareable time-limited access links** — a way to let someone view the
   tree without creating an account at all:
-  - Super Admin generates a link + access token pair, view-only (never grants edit)
-  - Expiry options: 1 week / 1 month / 1 year / custom date / never expires
-  - Token is checked against expiry on each access; expired tokens 403 with a
+  - [x] Super Admin generates a link + access token pair, view-only (never grants edit)
+  - [x] Expiry options: 1 week / 1 month / 1 year / custom date / never expires
+  - [x] Token is checked against expiry on each access; expired tokens 403 with a
     clear "this link has expired" message rather than a generic error
-  - Super Admin can see a list of active/expired share links and manually
+  - [x] Super Admin can see a list of active/expired share links and manually
     revoke any of them before their natural expiry
-  - Share-link viewers see living people the same as an authenticated Viewer
+  - [x] Share-link viewers see living people the same as an authenticated Viewer
     — no extra redaction for the account-free path
 
 ## 5. Search [COMPLETED]

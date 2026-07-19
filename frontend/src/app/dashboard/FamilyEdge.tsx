@@ -9,6 +9,8 @@ interface FamilyEdgeData {
   startYear?: number | null;
   endYear?: number | null;
   isFaded?: boolean;
+  onCollapse?: (targetPersonId: string) => void;
+  targetPersonId?: string;
 }
 
 export default function FamilyEdge({

@@ -14,6 +14,7 @@ public class FamilyTreeDbContext : IdentityDbContext<FamilyTreeUser, IdentityRol
 
     public DbSet<Person> People => Set<Person>();
     public DbSet<Relationship> Relationships => Set<Relationship>();
+    public DbSet<ShareLink> ShareLinks => Set<ShareLink>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -55,6 +56,21 @@ public class FamilyTreeDbContext : IdentityDbContext<FamilyTreeUser, IdentityRol
                 .WithMany()
                 .HasForeignKey(u => u.PersonId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Configure ShareLink entities
+        builder.Entity<ShareLink>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Token).IsRequired().HasMaxLength(100);
+            entity.HasIndex(s => s.Token).IsUnique();
+            entity.Property(s => s.ViewMode).IsRequired().HasMaxLength(50);
+
+            // Configure TargetPerson relationship navigation
+            entity.HasOne(s => s.TargetPerson)
+                .WithMany()
+                .HasForeignKey(s => s.TargetPersonId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

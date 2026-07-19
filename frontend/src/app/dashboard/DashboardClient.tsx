@@ -9,7 +9,8 @@ import {
   GitBranch, Trash2, Edit, Plus, ArrowRightLeft, GitFork, 
   Info, Home, LogOut, Calendar, UserPlus, X, AlertTriangle,
   Network, Users, ChevronLeft, ChevronRight, Check, MapPin,
-  Search, Filter, SlidersHorizontal, RefreshCw, AlertCircle, Sparkles
+  Search, Filter, SlidersHorizontal, RefreshCw, AlertCircle, Sparkles,
+  Share2
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ThemeToggle from "../ThemeToggle";
@@ -147,6 +148,51 @@ const MERGE_PEOPLE = gql`
   }
 `;
 
+const GET_SHARE_LINKS = gql`
+  query GetShareLinks {
+    shareLinks {
+      id
+      token
+      targetPersonId
+      targetPerson {
+        id
+        firstName
+        lastName
+      }
+      viewMode
+      createdAt
+      expiresAt
+      isRevoked
+      clickCount
+      isValid
+      isExpired
+    }
+  }
+`;
+
+const CREATE_SHARE_LINK = gql`
+  mutation CreateShareLink($input: CreateShareLinkInput!) {
+    createShareLink(input: $input) {
+      id
+      token
+      targetPersonId
+      viewMode
+      createdAt
+      expiresAt
+      isRevoked
+      clickCount
+      isValid
+      isExpired
+    }
+  }
+`;
+
+const REVOKE_SHARE_LINK = gql`
+  mutation RevokeShareLink($id: UUID!) {
+    revokeShareLink(id: $id)
+  }
+`;
+
 export default function DashboardClient() {
   const { user, logout, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -171,9 +217,45 @@ export default function DashboardClient() {
   const [createRelationship] = useMutation(CREATE_RELATIONSHIP);
   const [deleteRelationship] = useMutation(DELETE_RELATIONSHIP);
 
-  const [activeTab, setActiveTab] = useState<"people" | "relationships" | "graph" | "duplicates">("graph");
+  const [activeTab, setActiveTab] = useState<"people" | "relationships" | "graph" | "duplicates" | "shareLinks">("graph");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Share Link States
+  const [shareTargetPersonId, setShareTargetPersonId] = useState("");
+  const [shareViewMode, setShareViewMode] = useState("network");
+  const [shareExpiryOption, setShareExpiryOption] = useState("never");
+  const [shareCustomDate, setShareCustomDate] = useState("");
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [copiedTokenId, setCopiedTokenId] = useState<string | null>(null);
+
+  const { data: shareLinksData, refetch: refetchShareLinks } = useQuery<any>(GET_SHARE_LINKS, {
+    skip: user?.role !== "SuperAdmin" || activeTab !== "shareLinks",
+  });
+
+  const [createShareLink, { loading: createShareLoading }] = useMutation(CREATE_SHARE_LINK, {
+    onCompleted: (resData: any) => {
+      const baseUrl = window.location.origin;
+      const shareUrl = `${baseUrl}/share/${resData.createShareLink.token}`;
+      setGeneratedLink(shareUrl);
+      if (activeTab === "shareLinks") {
+        refetchShareLinks();
+      }
+    },
+    onError: (err) => {
+      setErrorMsg("Failed to generate share link: " + err.message);
+    }
+  });
+
+  const [revokeShareLink] = useMutation(REVOKE_SHARE_LINK, {
+    onCompleted: () => {
+      refetchShareLinks();
+    },
+    onError: (err) => {
+      setErrorMsg("Failed to revoke share link: " + err.message);
+    }
+  });
 
   // Search States
   const [searchQuery, setSearchQuery] = useState("");
@@ -213,6 +295,25 @@ export default function DashboardClient() {
   useEffect(() => {
     setCollapsedNodeIds(new Set());
   }, [viewMode, selectedPersonId]);
+
+  // URL deep link parsing on client load
+  useEffect(() => {
+    if (typeof window !== "undefined" && data) {
+      const params = new URLSearchParams(window.location.search);
+      const focal = params.get("focal");
+      const mode = params.get("viewMode");
+      
+      if (focal && data.people?.some((p: any) => p.id === focal)) {
+        setSelectedPersonId(focal);
+        setFocusedNodeId(focal);
+        setIsDrawerOpen(true);
+      }
+      
+      if (mode && (mode === "network" || mode === "pedigree" || mode === "descendant")) {
+        setViewMode(mode as any);
+      }
+    }
+  }, [data]);
 
   const handleCollapseNode = (nodeId: string) => {
     setCollapsedNodeIds((prev) => {
@@ -1207,6 +1308,40 @@ export default function DashboardClient() {
     );
   }
 
+
+  const handleCreateShareLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!shareTargetPersonId) {
+      setErrorMsg("Please select a target person.");
+      return;
+    }
+    
+    try {
+      await createShareLink({
+        variables: {
+          input: {
+            targetPersonId: shareTargetPersonId,
+            viewMode: shareViewMode,
+            expiryOption: shareExpiryOption,
+            customExpiryDate: shareExpiryOption === "custom" && shareCustomDate ? new Date(shareCustomDate).toISOString() : null,
+          }
+        }
+      });
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  const handleRevokeShareLink = async (id: string) => {
+    if (confirm("Are you sure you want to revoke this share link immediately?")) {
+      try {
+        await revokeShareLink({ variables: { id } });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
   // ------------------------------------------------------------------------------
   // Actions
   // ------------------------------------------------------------------------------
@@ -1434,6 +1569,17 @@ export default function DashboardClient() {
             >
               <GitFork size={18} style={{ flexShrink: 0 }} />
               {!sidebarCollapsed && <span>Merge Tool</span>}
+            </button>
+          )}
+          {user?.role === "SuperAdmin" && (
+            <button 
+              type="button"
+              className={`${styles.sidebarLink} ${activeTab === "shareLinks" ? styles.sidebarLinkActive : ""}`}
+              onClick={() => setActiveTab("shareLinks")}
+              title={sidebarCollapsed ? "Share Links" : ""}
+            >
+              <Share2 size={18} style={{ flexShrink: 0 }} />
+              {!sidebarCollapsed && <span>Share Links</span>}
             </button>
           )}
         </nav>
@@ -1782,6 +1928,117 @@ export default function DashboardClient() {
                 isReadOnly={isReadOnly}
                 refetchMainData={refetch}
               />
+            )}
+
+            {activeTab === "shareLinks" && user?.role === "SuperAdmin" && (
+              <div className={styles.tableCard}>
+                <div className={styles.cardHeader} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <h3 className={styles.cardTitle}>Shareable Access Links</h3>
+                    <p className={styles.cardSubtitle}>Generate and manage secure view-only links for users without accounts.</p>
+                  </div>
+                  <button 
+                    type="button" 
+                    className={styles.createBtn}
+                    onClick={() => {
+                      setShareTargetPersonId("");
+                      setShareViewMode("network");
+                      setShareExpiryOption("never");
+                      setGeneratedLink(null);
+                      setIsShareModalOpen(true);
+                    }}
+                  >
+                    <Plus size={16} />
+                    <span>Create Share Link</span>
+                  </button>
+                </div>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Target Individual</th>
+                        <th>Default View</th>
+                        <th>Created</th>
+                        <th>Expires</th>
+                        <th>Clicks</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {!shareLinksData?.shareLinks || shareLinksData.shareLinks.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: "center", padding: "20px", color: "var(--text-muted)" }}>
+                            No share links created yet. Click "Create Share Link" to generate one.
+                          </td>
+                        </tr>
+                      ) : (
+                        shareLinksData.shareLinks.map((link: any) => {
+                          const isExpired = link.isExpired;
+                          const isValid = link.isValid;
+                          let statusText = "Active";
+                          let statusClass = styles.statusLiving;
+                          if (link.isRevoked) {
+                            statusText = "Revoked";
+                            statusClass = styles.statusDeceased;
+                          } else if (isExpired) {
+                            statusText = "Expired";
+                            statusClass = styles.statusDeceased;
+                          }
+                          const shareUrl = `${window.location.origin}/share/${link.token}`;
+
+                          return (
+                            <tr key={link.id}>
+                              <td style={{ fontWeight: 500 }}>
+                                {link.targetPerson ? `${link.targetPerson.firstName} ${link.targetPerson.lastName}` : "Unknown"}
+                              </td>
+                              <td style={{ textTransform: "capitalize" }}>{link.viewMode}</td>
+                              <td>{new Date(link.createdAt).toLocaleDateString()}</td>
+                              <td>
+                                {link.expiresAt 
+                                  ? new Date(link.expiresAt).toLocaleDateString() + " " + new Date(link.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                  : "Never"}
+                              </td>
+                              <td>{link.clickCount}</td>
+                              <td>
+                                <span className={statusClass} style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px" }}>
+                                  {statusText}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", gap: "8px" }}>
+                                  <button
+                                    type="button"
+                                    className={styles.inlineEditTriggerSec}
+                                    style={{ padding: "4px 8px" }}
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(shareUrl);
+                                      setCopiedTokenId(link.id);
+                                      setTimeout(() => setCopiedTokenId(null), 2000);
+                                    }}
+                                  >
+                                    {copiedTokenId === link.id ? "Copied!" : "Copy Link"}
+                                  </button>
+                                  {isValid && (
+                                    <button
+                                      type="button"
+                                      className={styles.inlineDeleteTrigger}
+                                      style={{ padding: "4px 8px", background: "rgba(239, 68, 68, 0.1)", border: "none", color: "#ef4444" }}
+                                      onClick={() => handleRevokeShareLink(link.id)}
+                                    >
+                                      Revoke
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -2166,6 +2423,26 @@ export default function DashboardClient() {
                 </div>
               )}
             </div>
+            
+            {user?.role === "SuperAdmin" && (
+              <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px dashed var(--border-color)" }}>
+                <button
+                  type="button"
+                  className={styles.seedBtn}
+                  style={{ width: "100%", justifyContent: "center" }}
+                  onClick={() => {
+                    setShareTargetPersonId(selectedPerson.id);
+                    setShareViewMode(viewMode);
+                    setShareExpiryOption("never");
+                    setGeneratedLink(null);
+                    setIsShareModalOpen(true);
+                  }}
+                >
+                  <Share2 size={14} />
+                  <span>Generate Share Link</span>
+                </button>
+              </div>
+            )}
           </>
         )}
       </aside>
@@ -2524,6 +2801,135 @@ export default function DashboardClient() {
                 <button type="submit" className={styles.createBtn}>
                   Establish Link
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Share Link Modal */}
+      {isShareModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: "500px" }}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>Generate Shareable Access Link</h3>
+              <button 
+                type="button" 
+                className={styles.modalCloseBtn}
+                onClick={() => setIsShareModalOpen(false)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateShareLink}>
+              <div className={styles.modalBody}>
+                {generatedLink ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    <div style={{ background: "rgba(16, 185, 129, 0.1)", border: "1px solid #10b981", borderRadius: "8px", padding: "12px", display: "flex", gap: "10px", alignItems: "center" }}>
+                      <Check size={18} style={{ color: "#10b981", flexShrink: 0 }} />
+                      <span style={{ fontSize: "13px", color: "var(--text-color)" }}>Share link successfully generated! Copy the URL below to share access.</span>
+                    </div>
+                    
+                    <div className={styles.inputGroup}>
+                      <label className={styles.label}>Access URL</label>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <input
+                          type="text"
+                          readOnly
+                          value={generatedLink}
+                          className={styles.input}
+                          style={{ fontFamily: "monospace", fontSize: "12px" }}
+                          onClick={(e) => (e.target as any).select()}
+                        />
+                        <button
+                          type="button"
+                          className={styles.createBtn}
+                          style={{ whiteSpace: "nowrap" }}
+                          onClick={() => {
+                            navigator.clipboard.writeText(generatedLink);
+                            alert("Copied to clipboard!");
+                          }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    <div className={styles.inputGroup}>
+                      <label className={styles.label} htmlFor="shareTargetId">Target Individual</label>
+                      <select 
+                        id="shareTargetId"
+                        className={styles.select}
+                        value={shareTargetPersonId}
+                        onChange={(e) => setShareTargetPersonId(e.target.value)}
+                        required
+                      >
+                        <option value="">-- Select Person --</option>
+                        {data?.people?.map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className={styles.inputGroup}>
+                      <label className={styles.label} htmlFor="shareViewMode">Default View Mode</label>
+                      <select 
+                        id="shareViewMode"
+                        className={styles.select}
+                        value={shareViewMode}
+                        onChange={(e) => setShareViewMode(e.target.value)}
+                      >
+                        <option value="network">Network Graph</option>
+                        <option value="pedigree">Pedigree Chart</option>
+                        <option value="descendant">Descendant Chart</option>
+                      </select>
+                    </div>
+
+                    <div className={styles.inputGroup}>
+                      <label className={styles.label} htmlFor="shareExpiry">Expiration Period</label>
+                      <select 
+                        id="shareExpiry"
+                        className={styles.select}
+                        value={shareExpiryOption}
+                        onChange={(e) => setShareExpiryOption(e.target.value)}
+                      >
+                        <option value="never">Never Expires</option>
+                        <option value="1week">1 Week</option>
+                        <option value="1month">1 Month</option>
+                        <option value="1year">1 Year</option>
+                        <option value="custom">Custom Date</option>
+                      </select>
+                    </div>
+
+                    {shareExpiryOption === "custom" && (
+                      <div className={styles.inputGroup}>
+                        <label className={styles.label} htmlFor="shareCustomDate">Custom Expiry Date & Time</label>
+                        <input
+                          id="shareCustomDate"
+                          type="datetime-local"
+                          className={styles.input}
+                          value={shareCustomDate}
+                          onChange={(e) => setShareCustomDate(e.target.value)}
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              <div className={styles.modalFooter}>
+                <button type="button" className={styles.cancelBtn} onClick={() => setIsShareModalOpen(false)}>
+                  {generatedLink ? "Close" : "Cancel"}
+                </button>
+                {!generatedLink && (
+                  <button type="submit" className={styles.createBtn} disabled={createShareLoading}>
+                    {createShareLoading ? "Generating..." : "Generate Link"}
+                  </button>
+                )}
               </div>
             </form>
           </div>

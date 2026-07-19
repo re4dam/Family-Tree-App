@@ -99,5 +99,18 @@ public class Query
 
         return new SubtreePayload(people, relList);
     }
+
+    [Authorize(Roles = new[] { "SuperAdmin" })]
+    [UseFiltering]
+    [UseSorting]
+    public IQueryable<ShareLink> GetShareLinks(FamilyTreeDbContext db) =>
+        db.ShareLinks.Include(s => s.TargetPerson);
+
+    public async Task<ShareLink?> GetShareLinkByTokenAsync(string token, FamilyTreeDbContext db)
+    {
+        return await db.ShareLinks
+            .Include(s => s.TargetPerson)
+            .FirstOrDefaultAsync(s => s.Token == token);
+    }
 }
 

@@ -699,4 +699,146 @@ public class Mutation
 
         return (new JwtSecurityTokenHandler().WriteToken(jwtToken), expiration);
     }
+
+    [Authorize(Roles = new[] { "SuperAdmin" })]
+    public async Task<ShareLink> CreateShareLinkAsync(
+        CreateShareLinkInput input,
+        FamilyTreeDbContext db)
+    {
+        var person = await db.People.FindAsync(input.TargetPersonId);
+        if (person == null)
+        {
+            throw new GraphQLException("Target person does not exist.");
+        }
+
+        var vm = input.ViewMode.ToLower();
+        if (vm != "network" && vm != "pedigree" && vm != "descendant")
+        {
+            throw new GraphQLException("Invalid view mode specified. Must be 'network', 'pedigree', or 'descendant'.");
+        }
+
+        DateTime? expiresAt = null;
+        switch (input.ExpiryOption.ToLower())
+        {
+            case "1week":
+                expiresAt = DateTime.UtcNow.AddDays(7);
+                break;
+            case "1month":
+                expiresAt = DateTime.UtcNow.AddMonths(1);
+                break;
+            case "1year":
+                expiresAt = DateTime.UtcNow.AddYears(1);
+                break;
+            case "custom":
+                if (!input.CustomExpiryDate.HasValue)
+                {
+                    throw new GraphQLException("Custom expiry date must be provided for 'custom' option.");
+                }
+                expiresAt = input.CustomExpiryDate.Value.ToUniversalTime();
+                break;
+            case "never":
+            default:
+                expiresAt = null;
+                break;
+        }
+
+        var randomBytes = new byte[32];
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(randomBytes);
+        }
+        var token = Convert.ToHexString(randomBytes).ToLower();
+
+        var shareLink = new ShareLink
+        {
+            Id = Guid.NewGuid(),
+            Token = token,
+            TargetPersonId = input.TargetPersonId,
+            TargetPerson = person,
+            ViewMode = vm,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = expiresAt,
+            IsRevoked = false,
+            ClickCount = 0
+        };
+
+        db.ShareLinks.Add(shareLink);
+        await db.SaveChangesAsync();
+
+        return shareLink;
+    }
+
+    [Authorize(Roles = new[] { "SuperAdmin" })]
+    public async Task<bool> RevokeShareLinkAsync(Guid id, FamilyTreeDbContext db)
+    {
+        var shareLink = await db.ShareLinks.FindAsync(id);
+        if (shareLink == null)
+        {
+            throw new GraphQLException("Share link not found.");
+        }
+
+        shareLink.IsRevoked = true;
+        await db.SaveChangesAsync();
+
+        return true;
+    }
+
+    public async Task<ShareLinkAccessPayload> AccessShareLinkAsync(
+        string token,
+        FamilyTreeDbContext db,
+        [Service] IConfiguration configuration)
+    {
+        var shareLink = await db.ShareLinks
+            .Include(s => s.TargetPerson)
+            .FirstOrDefaultAsync(s => s.Token == token);
+
+        if (shareLink == null || !shareLink.IsValid)
+        {
+            throw new GraphQLException("This share link has expired or is invalid.");
+        }
+
+        shareLink.ClickCount++;
+        await db.SaveChangesAsync();
+
+        var (jwtToken, expiration) = GenerateShareJwtToken(shareLink.Id, "Viewer", configuration);
+
+        return new ShareLinkAccessPayload(
+            jwtToken,
+            expiration,
+            shareLink.TargetPersonId,
+            shareLink.ViewMode
+        );
+    }
+
+    private (string Token, DateTime Expiration) GenerateShareJwtToken(Guid shareLinkId, string role, IConfiguration configuration)
+    {
+        var secret = configuration["Jwt:Secret"] ?? "SuperSecretSecurityKeyToVerifyTokens_Minimum256BitsLong!";
+        var issuer = configuration["Jwt:Issuer"] ?? "FamilyTreeApi";
+        var audience = configuration["Jwt:Audience"] ?? "FamilyTreeFrontend";
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expiration = DateTime.UtcNow.AddDays(1);
+
+        var claims = new List<Claim>
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, shareLinkId.ToString()),
+            new Claim(JwtRegisteredClaimNames.UniqueName, $"share-{shareLinkId}"),
+            new Claim(JwtRegisteredClaimNames.Email, "share@familytree.local"),
+            new Claim(ClaimTypes.NameIdentifier, shareLinkId.ToString()),
+            new Claim(ClaimTypes.Name, "Anonymous Viewer"),
+            new Claim(ClaimTypes.Role, role),
+            new Claim("IsShareLink", "true")
+        };
+
+        var jwtToken = new JwtSecurityToken(
+            issuer: issuer,
+            audience: audience,
+            claims: claims,
+            expires: expiration,
+            signingCredentials: creds
+        );
+
+        return (new JwtSecurityTokenHandler().WriteToken(jwtToken), expiration);
+    }
 }

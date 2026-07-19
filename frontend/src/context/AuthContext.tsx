@@ -20,6 +20,7 @@ interface AuthContextType {
   login: (usernameOrEmail: string, password: string) => Promise<User>;
   register: (username: string, email: string, password: string) => Promise<User>;
   logout: () => void;
+  loginWithShareToken: (token: string) => Promise<{ targetPersonId: string; viewMode: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,6 +53,17 @@ const REGISTER_MUTATION = gql`
         role
         personId
       }
+    }
+  }
+`;
+
+const ACCESS_SHARE_LINK_MUTATION = gql`
+  mutation AccessShareLink($token: String!) {
+    accessShareLink(token: $token) {
+      token
+      expiration
+      targetPersonId
+      viewMode
     }
   }
 `;
@@ -157,8 +169,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     client.clearStore();
   };
 
+  const loginWithShareToken = async (tokenValue: string): Promise<{ targetPersonId: string; viewMode: string }> => {
+    const { data } = await client.mutate<any>({
+      mutation: ACCESS_SHARE_LINK_MUTATION,
+      variables: { token: tokenValue },
+    });
+
+    if (!data || !data.accessShareLink) {
+      throw new Error("Invalid or expired share link.");
+    }
+
+    const { token: jwtToken, targetPersonId, viewMode } = data.accessShareLink;
+    localStorage.setItem("token", jwtToken);
+    setToken(jwtToken);
+
+    const decoded: any = jwtDecode(jwtToken);
+    const userId = decoded.sub || decoded["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"];
+    const username = decoded.unique_name || "Share Link Viewer";
+    const role = decoded.role || "Viewer";
+
+    const formattedUser: User = {
+      id: userId,
+      username: username,
+      email: "share@familytree.local",
+      role: role,
+    };
+    setUser(formattedUser);
+
+    return { targetPersonId, viewMode };
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, loginWithShareToken }}>
       {children}
     </AuthContext.Provider>
   );
